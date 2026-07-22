@@ -12,6 +12,7 @@ import VerifyEmail from "@/pages/verify-email";
 import Dashboard from "@/pages/dashboard";
 import CandidateProfile from "@/pages/candidate-profile";
 import MyRequests from "@/pages/my-requests";
+import Prospective from "@/pages/prospective";
 
 // Admin Pages
 import AdminDashboard from "@/pages/admin/dashboard";
@@ -56,6 +57,11 @@ function Router() {
         <Route path="/my-requests">
           <ProtectedRoute>
             <MyRequests />
+          </ProtectedRoute>
+        </Route>
+        <Route path="/prospective">
+          <ProtectedRoute>
+            <Prospective />
           </ProtectedRoute>
         </Route>
 

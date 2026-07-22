@@ -60,17 +60,22 @@ router.post("/auth/signup", authLimiter, async (req, res): Promise<void> => {
     return;
   }
 
-  const [whitelistedDomain] = await db
-    .select()
-    .from(domainsTable)
-    .where(eq(domainsTable.domain, domain));
+  // @activeimpactinvestments.com users are auto-approved as admin (no whitelist check needed)
+  const isActiveImpactDomain = domain === "activeimpactinvestments.com";
 
-  if (!whitelistedDomain) {
-    res.status(400).json({
-      error:
-        "Your email domain is not on the portfolio company whitelist. Please contact the Active Impact team to get access.",
-    });
-    return;
+  if (!isActiveImpactDomain) {
+    const [whitelistedDomain] = await db
+      .select()
+      .from(domainsTable)
+      .where(eq(domainsTable.domain, domain));
+
+    if (!whitelistedDomain) {
+      res.status(400).json({
+        error:
+          "Your email domain is not on the portfolio company whitelist. Please contact the Active Impact team to get access.",
+      });
+      return;
+    }
   }
 
   // Check for existing user
@@ -85,19 +90,37 @@ router.post("/auth/signup", authLimiter, async (req, res): Promise<void> => {
 
   const passwordHash = await bcrypt.hash(password, 12);
 
+  // Active Impact team members get immediate admin access, no email verification required
+  const role = isActiveImpactDomain ? "admin" : "founder";
+  const emailVerified = isActiveImpactDomain ? true : false;
+
   const [user] = await db
     .insert(usersTable)
     .values({
       email: email.toLowerCase(),
       passwordHash,
       name,
-      company,
-      role: "founder",
-      emailVerified: false,
+      company: isActiveImpactDomain ? (company ?? "Active Impact Investments") : company,
+      role,
+      emailVerified,
     })
     .returning();
 
-  // Create verification token
+  req.session.userId = user.id;
+  req.session.userRole = user.role;
+  req.session.emailVerified = user.emailVerified;
+
+  if (isActiveImpactDomain) {
+    // Active Impact team: immediate access, no verification needed
+    req.log.info({ userId: user.id }, "Active Impact team member registered as admin");
+    res.status(201).json({
+      user: formatUser(user),
+      message: "Welcome to Active Impact Talent Hub. Your admin account is ready.",
+    });
+    return;
+  }
+
+  // Create verification token for non-AII users
   const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
   await db.insert(emailVerificationTokensTable).values({
@@ -107,10 +130,6 @@ router.post("/auth/signup", authLimiter, async (req, res): Promise<void> => {
   });
 
   req.log.info({ userId: user.id }, "User signed up, verification token created");
-
-  req.session.userId = user.id;
-  req.session.userRole = user.role;
-  req.session.emailVerified = user.emailVerified;
 
   res.status(201).json({
     user: formatUser(user),

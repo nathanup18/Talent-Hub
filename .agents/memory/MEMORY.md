@@ -1,0 +1,3 @@
+- [TE sync approach](te-sync.md) — MCP callbacks only work in CodeExecution; session table must be created manually before first login.
+- [TE data structure](te-data-structure.md) — searchPeople pagination broken (always returns page 1); listPersonActivities returns {pagination, results:[]} not an array; Discovery Calls logged as Status Update with "Discovery Call" in title.
+- [Auth domain bypass](auth-bypass.md) — @activeimpactinvestments.com auto-registers as admin+verified; verification token skipped for that domain.

@@ -14,6 +14,9 @@ if (!process.env.SESSION_SECRET) {
 const PgSession = connectPgSimple(session);
 const app: Express = express();
 
+// Trust the Replit proxy so express-rate-limit can read X-Forwarded-For correctly
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,

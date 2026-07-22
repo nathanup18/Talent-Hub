@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useLogout } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { LogOut, LayoutDashboard, Users, User, Link as LinkIcon, Building2 } from "lucide-react";
+import { LogOut, LayoutDashboard, Users, Link as LinkIcon, Building2, Sparkles } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import logoFooterWhite from "@assets/logo-footer-white.png";
 
@@ -32,6 +32,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     { label: "Domains", href: "/admin/domains", icon: Building2 },
   ] : [
     { label: "Discover", href: "/dashboard", icon: Users },
+    { label: "Prospective", href: "/prospective", icon: Sparkles },
     { label: "My Requests", href: "/my-requests", icon: LinkIcon },
   ];
 

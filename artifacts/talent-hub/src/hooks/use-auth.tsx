@@ -1,4 +1,5 @@
-import { createContext, useContext, ReactNode } from "react";
+// @refresh reset
+import { createContext, useContext, ReactNode, useEffect } from "react";
 import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 import type { CurrentUser } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
@@ -34,34 +35,36 @@ export function useAuth() {
   return context;
 }
 
-export function ProtectedRoute({ 
-  children, 
-  adminOnly = false 
-}: { 
+function Spinner() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+    </div>
+  );
+}
+
+export function ProtectedRoute({
+  children,
+  adminOnly = false,
+}: {
   children: ReactNode;
   adminOnly?: boolean;
 }) {
   const { user, isLoading } = useAuth();
   const [, setLocation] = useLocation();
 
-  if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" /></div>;
-  }
+  // All hooks must run before any conditional returns
+  useEffect(() => {
+    if (isLoading) return;
+    if (!user) { setLocation("/login"); return; }
+    if (!user.emailVerified) { setLocation("/verify-email"); return; }
+    if (adminOnly && user.role !== "admin") { setLocation("/dashboard"); return; }
+  }, [isLoading, user, adminOnly, setLocation]);
 
-  if (!user) {
-    setLocation("/login");
-    return null;
-  }
-
-  if (!user.emailVerified) {
-    setLocation("/verify-email");
-    return null;
-  }
-
-  if (adminOnly && user.role !== "admin") {
-    setLocation("/dashboard");
-    return null;
-  }
+  if (isLoading) return <Spinner />;
+  if (!user) return null;
+  if (!user.emailVerified) return null;
+  if (adminOnly && user.role !== "admin") return null;
 
   return <>{children}</>;
 }
