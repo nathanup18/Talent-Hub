@@ -82,6 +82,16 @@ export default function Profile() {
 
       <form onSubmit={handleSave} className="bg-card border border-card-border rounded-xl p-6 space-y-5">
         <div className="space-y-1.5">
+          <label className="text-sm font-medium">Email Address</label>
+          <Input
+            value={user?.email ?? ""}
+            disabled
+            className="bg-muted text-muted-foreground cursor-not-allowed"
+          />
+          <p className="text-xs text-muted-foreground">Email cannot be changed. Contact an admin if you need to update it.</p>
+        </div>
+
+        <div className="space-y-1.5">
           <label className="text-sm font-medium">Full Name</label>
           <Input
             value={name}
