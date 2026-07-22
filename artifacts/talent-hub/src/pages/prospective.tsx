@@ -357,133 +357,57 @@ export default function Prospective() {
         )}
       </div>
 
-      {/* Overview card — same style as Talent Pool dashboard */}
-      {!isLoading && candidates.length > 0 && (
-        <div className="bg-card border border-card-border rounded-lg p-6 shadow-sm">
-          <div className="flex flex-wrap gap-6 items-center">
-            {/* Total */}
-            <div className="bg-primary/10 rounded-lg p-4 min-w-[160px]">
-              <div className="text-sm text-primary font-medium mb-1">1st Screen Pipeline</div>
-              <div className="text-3xl font-mono font-semibold text-foreground">
-                {candidates.length}
-              </div>
-              {expressedCount > 0 && (
-                <div className="text-xs text-muted-foreground mt-1">
-                  <span className="text-primary font-semibold">{expressedCount}</span> interest{expressedCount !== 1 ? "s" : ""} expressed
-                </div>
-              )}
-            </div>
-
-            {/* Category grid — click to filter */}
-            <div className="flex-1 flex gap-3 flex-wrap">
-              {categoryBreakdown.map((item) => (
-                <button
-                  key={item.category}
-                  onClick={() => {
-                    setSelectedCategory(
-                      selectedCategory === item.category ? "All" : item.category
-                    );
-                  }}
-                  className={`flex-shrink-0 rounded-lg px-4 py-3 min-w-[110px] text-left transition-all border ${
-                    selectedCategory === item.category
-                      ? "bg-primary text-white border-primary shadow-sm"
-                      : "bg-muted border-border hover:border-primary/50 hover:bg-primary/5"
-                  }`}
-                >
-                  <div className={`text-xs mb-1 font-medium ${
-                    selectedCategory === item.category ? "text-white/80" : "text-muted-foreground"
-                  }`}>
-                    {item.category}
-                  </div>
-                  <div className={`text-xl font-mono font-semibold ${
-                    selectedCategory === item.category ? "text-white" : "text-foreground"
-                  }`}>
-                    {item.count}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Sync timestamp + active filter indicator */}
-          <div className="flex items-center justify-between mt-3">
-            {selectedCategory !== "All" ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                Showing <strong className="text-foreground">{selectedCategory}</strong>
-                <button
-                  onClick={() => setSelectedCategory("All")}
-                  className="text-xs flex items-center gap-1 hover:text-foreground"
-                >
-                  <X className="w-3 h-3" /> Clear
-                </button>
-              </div>
-            ) : <div />}
-            {candidates[0]?.lastSyncedAt && (
-              <div className="text-xs text-muted-foreground">
-                Synced{" "}
-                {new Date(candidates[0].lastSyncedAt).toLocaleDateString("en-CA", {
-                  month: "short",
-                  day: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Search + category filters */}
       {!isLoading && candidates.length > 0 && (
         <div className="space-y-3">
-          {/* Search bar */}
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by role, location, skill…"
-              className="pl-9 pr-8"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+          {/* Search + Filters button row */}
+          <div className="flex gap-2">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by role, location, skill…"
+                className="pl-9 pr-8"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            {(searchQuery || selectedCategory !== "All") && (
+              <Button variant="ghost" size="sm" onClick={() => { setSearchQuery(""); setSelectedCategory("All"); }} className="text-muted-foreground">
+                <X className="w-3.5 h-3.5 mr-1" /> Clear
+              </Button>
             )}
           </div>
 
-          {/* Category pills */}
+          {/* Category pills — no "All" button */}
           <div className="flex flex-wrap gap-2">
-            {CATEGORIES.map((cat) => {
-              const count =
-                cat === "All"
-                  ? candidates.length
-                  : candidates.filter((c) => c.roleCategory === cat).length;
-              if (cat !== "All" && count === 0) return null;
-              return (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
-                    selectedCategory === cat
-                      ? "bg-primary text-white border-primary"
-                      : "bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
-                  }`}
-                >
-                  {cat}
-                  <span
-                    className={`ml-1.5 text-xs ${
-                      selectedCategory === cat ? "opacity-80" : "opacity-60"
-                    }`}
-                  >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
+            {categoryBreakdown.map((item) => (
+              <button
+                key={item.category}
+                onClick={() =>
+                  setSelectedCategory(
+                    selectedCategory === item.category ? "All" : item.category
+                  )
+                }
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                  selectedCategory === item.category
+                    ? "bg-primary text-white border-primary"
+                    : "bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
+                }`}
+              >
+                {item.category}
+                <span className={`ml-1.5 text-xs ${selectedCategory === item.category ? "opacity-80" : "opacity-60"}`}>
+                  {item.count}
+                </span>
+              </button>
+            ))}
           </div>
         </div>
       )}
