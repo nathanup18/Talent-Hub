@@ -9,6 +9,7 @@ import Signup from "@/pages/signup";
 import VerifyEmail from "@/pages/verify-email";
 
 // Founder Pages
+import Profile from "@/pages/profile";
 import Dashboard from "@/pages/dashboard";
 import CandidateProfile from "@/pages/candidate-profile";
 import MyRequests from "@/pages/my-requests";
@@ -57,6 +58,11 @@ function Router() {
         <Route path="/my-requests">
           <ProtectedRoute>
             <MyRequests />
+          </ProtectedRoute>
+        </Route>
+        <Route path="/profile">
+          <ProtectedRoute>
+            <Profile />
           </ProtectedRoute>
         </Route>
         <Route path="/prospective">

@@ -3,6 +3,7 @@ import {
   serial,
   timestamp,
   integer,
+  text,
   pgEnum,
 } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
@@ -25,6 +26,8 @@ export const introRequestsTable = pgTable("intro_requests", {
     .notNull()
     .references(() => candidatesTable.id, { onDelete: "cascade" }),
   status: introRequestStatusEnum("status").notNull().default("requested"),
+  /** "intro" | "more_info" */
+  requestType: text("request_type").notNull().default("intro"),
   requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

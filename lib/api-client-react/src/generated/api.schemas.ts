@@ -338,6 +338,7 @@ export interface AdminIntroRequest {
 
 export interface IntroRequestInput {
   candidateId: number;
+  requestType?: string;
 }
 
 export type IntroRequestUpdateStatus = typeof IntroRequestUpdateStatus[keyof typeof IntroRequestUpdateStatus];

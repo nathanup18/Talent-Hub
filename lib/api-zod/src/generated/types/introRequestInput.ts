@@ -8,4 +8,5 @@
 
 export interface IntroRequestInput {
   candidateId: number;
+  requestType?: string;
 }

@@ -206,6 +206,7 @@ export const ListIntroRequestsResponseItem = zod.object({
   "founderName": zod.string(),
   "founderCompany": zod.string().nullish(),
   "status": zod.enum(['requested', 'offered', 'intro_made', 'placed', 'closed']),
+  "requestType": zod.string().default("intro"),
   "requestedAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -216,7 +217,8 @@ export const ListIntroRequestsResponse = zod.array(ListIntroRequestsResponseItem
  * @summary Request an intro to a candidate
  */
 export const CreateIntroRequestBody = zod.object({
-  "candidateId": zod.number()
+  "candidateId": zod.number(),
+  "requestType": zod.string().optional()
 })
 
 export const CreateIntroRequestResponse = zod.object({
@@ -228,6 +230,7 @@ export const CreateIntroRequestResponse = zod.object({
   "founderName": zod.string(),
   "founderCompany": zod.string().nullish(),
   "status": zod.enum(['requested', 'offered', 'intro_made', 'placed', 'closed']),
+  "requestType": zod.string().default("intro"),
   "requestedAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -415,6 +418,7 @@ export const ListAdminIntroRequestsResponseItem = zod.object({
   "founderEmail": zod.string(),
   "founderCompany": zod.string().nullish(),
   "status": zod.enum(['requested', 'offered', 'intro_made', 'placed', 'closed']),
+  "requestType": zod.string().default("intro"),
   "requestedAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })

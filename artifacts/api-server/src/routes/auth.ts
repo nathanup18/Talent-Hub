@@ -15,6 +15,7 @@ import {
   VerifyEmailBody,
   ResendVerificationBody,
 } from "@workspace/api-zod";
+import { z } from "zod/v4";
 
 const router: IRouter = Router();
 
@@ -267,5 +268,67 @@ router.post(
     res.json({ success: true });
   }
 );
+
+// PATCH /auth/profile — update name/company for logged-in user
+const UpdateProfileBody = z.object({
+  name: z.string().min(1).max(200).optional(),
+  company: z.string().max(200).optional(),
+  currentPassword: z.string().optional(),
+  newPassword: z.string().min(8).optional(),
+});
+
+router.patch("/auth/profile", async (req, res): Promise<void> => {
+  if (!req.session.userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const schema = UpdateProfileBody;
+
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid input" });
+    return;
+  }
+
+  const { name, company, currentPassword, newPassword } = parsed.data;
+  const userId = req.session.userId;
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  const updates: Record<string, unknown> = {};
+  if (name) updates.name = name;
+  if (company !== undefined) updates.company = company;
+
+  if (newPassword) {
+    if (!currentPassword) {
+      res.status(400).json({ error: "Current password required to set a new password" });
+      return;
+    }
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) {
+      res.status(400).json({ error: "Current password is incorrect" });
+      return;
+    }
+    updates.passwordHash = await bcrypt.hash(newPassword, 12);
+  }
+
+  if (Object.keys(updates).length === 0) {
+    res.json({ user: formatUser(user) });
+    return;
+  }
+
+  const [updated] = await db
+    .update(usersTable)
+    .set(updates)
+    .where(eq(usersTable.id, userId))
+    .returning();
+
+  res.json({ user: formatUser(updated) });
+});
 
 export default router;

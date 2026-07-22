@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
+import { z } from "zod/v4";
 import {
   db,
   introRequestsTable,
@@ -17,6 +18,34 @@ import {
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+
+function formatRequest(r: {
+  id: number;
+  candidateId: number;
+  candidateHeadline: string;
+  candidateRoleCategory: string;
+  founderId: number;
+  founderName: string;
+  founderCompany: string | null;
+  status: string;
+  requestType: string;
+  requestedAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: r.id,
+    candidateId: r.candidateId,
+    candidateHeadline: r.candidateHeadline,
+    candidateRoleCategory: r.candidateRoleCategory,
+    founderId: r.founderId,
+    founderName: r.founderName,
+    founderCompany: r.founderCompany,
+    status: r.status,
+    requestType: r.requestType,
+    requestedAt: r.requestedAt,
+    updatedAt: r.updatedAt,
+  };
+}
 
 // GET /intro-requests
 router.get(
@@ -37,6 +66,7 @@ router.get(
         founderName: usersTable.name,
         founderCompany: usersTable.company,
         status: introRequestsTable.status,
+        requestType: introRequestsTable.requestType,
         requestedAt: introRequestsTable.requestedAt,
         updatedAt: introRequestsTable.updatedAt,
       })
@@ -67,7 +97,7 @@ router.post(
       res.status(400).json({ error: parsed.error.message });
       return;
     }
-    const { candidateId } = parsed.data;
+    const { candidateId, requestType = "intro" } = parsed.data;
     const founderId = req.session.userId!;
 
     // Check candidate exists and is opted in
@@ -86,25 +116,27 @@ router.post(
       return;
     }
 
-    // Check for duplicate request
+    // Check for duplicate request of the same type
     const [existing] = await db
       .select()
       .from(introRequestsTable)
       .where(
         and(
           eq(introRequestsTable.founderId, founderId),
-          eq(introRequestsTable.candidateId, candidateId)
+          eq(introRequestsTable.candidateId, candidateId),
+          eq(introRequestsTable.requestType, requestType)
         )
       );
 
     if (existing) {
-      res.status(409).json({ error: "You have already requested an intro to this candidate" });
+      const label = requestType === "more_info" ? "more info" : "an intro";
+      res.status(409).json({ error: `You have already requested ${label} for this candidate` });
       return;
     }
 
     const [introRequest] = await db
       .insert(introRequestsTable)
-      .values({ founderId, candidateId })
+      .values({ founderId, candidateId, requestType })
       .returning();
 
     const [founder] = await db
@@ -113,23 +145,63 @@ router.post(
       .where(eq(usersTable.id, founderId));
 
     res.status(201).json(
-      CreateIntroRequestResponse.parse({
+      CreateIntroRequestResponse.parse(formatRequest({
         id: introRequest.id,
         candidateId: introRequest.candidateId,
         candidateHeadline: candidate.anonymizedHeadline,
         candidateRoleCategory: candidate.roleCategory,
         founderId: introRequest.founderId,
         founderName: founder.name,
-        founderCompany: founder.company,
+        founderCompany: founder.company ?? null,
         status: introRequest.status,
+        requestType: introRequest.requestType,
         requestedAt: introRequest.requestedAt,
         updatedAt: introRequest.updatedAt,
-      })
+      }))
     );
   }
 );
 
-// PATCH /intro-requests/:id
+// DELETE /intro-requests/:id  — founder cancels their own request
+router.delete(
+  "/intro-requests/:id",
+  requireAuth,
+  requireVerified,
+  async (req, res): Promise<void> => {
+    const id = parseInt(req.params.id);
+    if (!id || isNaN(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const founderId = req.session.userId!;
+    const isAdmin = req.session.userRole === "admin";
+
+    // Founders can only cancel their own; admins can cancel any
+    const [request] = await db
+      .select()
+      .from(introRequestsTable)
+      .where(eq(introRequestsTable.id, id));
+
+    if (!request) {
+      res.status(404).json({ error: "Request not found" });
+      return;
+    }
+
+    if (!isAdmin && request.founderId !== founderId) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    await db
+      .update(introRequestsTable)
+      .set({ status: "closed" })
+      .where(eq(introRequestsTable.id, id));
+
+    res.json({ success: true });
+  }
+);
+
+// PATCH /intro-requests/:id  — admin status update
 router.patch(
   "/intro-requests/:id",
   requireAdmin,
@@ -169,7 +241,7 @@ router.patch(
       .where(eq(usersTable.id, updated.founderId));
 
     res.json(
-      UpdateIntroRequestResponse.parse({
+      UpdateIntroRequestResponse.parse(formatRequest({
         id: updated.id,
         candidateId: updated.candidateId,
         candidateHeadline: candidate?.anonymizedHeadline ?? "",
@@ -178,9 +250,10 @@ router.patch(
         founderName: founder?.name ?? "",
         founderCompany: founder?.company ?? null,
         status: updated.status,
+        requestType: updated.requestType,
         requestedAt: updated.requestedAt,
         updatedAt: updated.updatedAt,
-      })
+      }))
     );
   }
 );

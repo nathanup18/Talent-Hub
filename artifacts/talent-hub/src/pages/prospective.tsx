@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,6 +21,8 @@ import {
   CheckCircle2,
   Sparkles,
   RefreshCw,
+  Search,
+  X,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { BASE_URL } from "@/lib/api";
@@ -85,6 +88,19 @@ function seniorityLabel(s: string) {
   return { "C-level": "C-Level", IC: "Individual Contributor" }[s] ?? s;
 }
 
+function matchesSearch(c: ProspectiveCandidate, q: string): boolean {
+  if (!q) return true;
+  const lower = q.toLowerCase();
+  return (
+    c.anonymizedHeadline.toLowerCase().includes(lower) ||
+    c.roleCategory.toLowerCase().includes(lower) ||
+    c.location.toLowerCase().includes(lower) ||
+    c.seniority.toLowerCase().includes(lower) ||
+    (c.summaryBlurb?.toLowerCase().includes(lower) ?? false) ||
+    c.topSkills.some((s) => s.toLowerCase().includes(lower))
+  );
+}
+
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
 function ProspectiveCard({
@@ -110,7 +126,10 @@ function ProspectiveCard({
           </h3>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
             <span
-              className={`text-xs px-2 py-0.5 rounded-full border font-medium ${CATEGORY_COLORS[candidate.roleCategory] ?? "bg-muted text-muted-foreground border-border"}`}
+              className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
+                CATEGORY_COLORS[candidate.roleCategory] ??
+                "bg-muted text-muted-foreground border-border"
+              }`}
             >
               {candidate.roleCategory}
             </span>
@@ -185,10 +204,7 @@ function ProspectiveCard({
             </Button>
           </div>
         ) : (
-          <Button
-            className="w-full"
-            onClick={() => onExpressInterest(candidate)}
-          >
+          <Button className="w-full" onClick={() => onExpressInterest(candidate)}>
             <Star className="w-4 h-4 mr-2" />
             Express Interest
           </Button>
@@ -267,7 +283,10 @@ function InterestDialog({
 
 // ─── Filter bar ───────────────────────────────────────────────────────────────
 
-const CATEGORIES = ["All", "Engineering", "Sales", "Product", "Operations", "Finance", "Marketing", "Executive"];
+const CATEGORIES = [
+  "All", "Engineering", "Sales", "Product", "Operations",
+  "Finance", "Marketing", "Executive",
+];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -275,6 +294,7 @@ export default function Prospective() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedCandidate, setSelectedCandidate] = useState<ProspectiveCandidate | null>(null);
   const [syncing, setSyncing] = useState(false);
 
@@ -284,9 +304,9 @@ export default function Prospective() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const filtered = selectedCategory === "All"
-    ? candidates
-    : candidates.filter((c) => c.roleCategory === selectedCategory);
+  const filtered = candidates
+    .filter((c) => selectedCategory === "All" || c.roleCategory === selectedCategory)
+    .filter((c) => matchesSearch(c, searchQuery));
 
   const expressedCount = candidates.filter((c) => c.hasExpressedInterest).length;
 
@@ -304,15 +324,14 @@ export default function Prospective() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Prospective Talent</h1>
           <p className="text-muted-foreground mt-1 text-sm max-w-xl">
-            Anonymized candidates currently at the first screening stage in our
-            pipeline. Express interest and the Active Impact team will coordinate
-            next steps — no direct contact details shared.
+            Candidates at the first screening stage of our pipeline — shown anonymously.
+            Express interest and the Active Impact team will coordinate next steps.
           </p>
         </div>
         {user?.role === "admin" && (
@@ -348,37 +367,70 @@ export default function Prospective() {
           )}
           {candidates[0]?.lastSyncedAt && (
             <div className="ml-auto text-xs">
-              Updated {new Date(candidates[0].lastSyncedAt).toLocaleDateString("en-CA", {
-                month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+              Updated{" "}
+              {new Date(candidates[0].lastSyncedAt).toLocaleDateString("en-CA", {
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
               })}
             </div>
           )}
         </div>
       )}
 
-      {/* Category filter */}
+      {/* Search + category filters */}
       {!isLoading && candidates.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {CATEGORIES.map((cat) => {
-            const count = cat === "All" ? candidates.length : candidates.filter(c => c.roleCategory === cat).length;
-            if (cat !== "All" && count === 0) return null;
-            return (
+        <div className="space-y-3">
+          {/* Search bar */}
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by role, location, skill…"
+              className="pl-9 pr-8"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
               <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
-                  selectedCategory === cat
-                    ? "bg-primary text-white border-primary"
-                    : "bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
-                }`}
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
-                {cat}
-                <span className={`ml-1.5 text-xs ${selectedCategory === cat ? "opacity-80" : "opacity-60"}`}>
-                  {count}
-                </span>
+                <X className="w-3.5 h-3.5" />
               </button>
-            );
-          })}
+            )}
+          </div>
+
+          {/* Category pills */}
+          <div className="flex flex-wrap gap-2">
+            {CATEGORIES.map((cat) => {
+              const count =
+                cat === "All"
+                  ? candidates.length
+                  : candidates.filter((c) => c.roleCategory === cat).length;
+              if (cat !== "All" && count === 0) return null;
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                    selectedCategory === cat
+                      ? "bg-primary text-white border-primary"
+                      : "bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
+                  }`}
+                >
+                  {cat}
+                  <span
+                    className={`ml-1.5 text-xs ${
+                      selectedCategory === cat ? "opacity-80" : "opacity-60"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -408,12 +460,14 @@ export default function Prospective() {
           <p className="font-medium">
             {candidates.length === 0
               ? "No prospective candidates at 1st screen right now"
+              : searchQuery
+              ? `No results for "${searchQuery}"`
               : `No ${selectedCategory} candidates at this stage`}
           </p>
           <p className="text-sm mt-1">
             {candidates.length === 0
               ? "Check back soon — candidates are added as they progress through screening."
-              : "Try another category."}
+              : "Try adjusting your search or category."}
           </p>
         </div>
       ) : (
