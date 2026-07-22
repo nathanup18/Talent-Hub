@@ -3,20 +3,28 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Active Impact Talent Hub API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: candidates
+    description: Candidate operations
+  - name: intro-requests
+    description: Intro request operations
+  - name: admin
+    description: Admin-only operations
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +32,532 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/signup:
+    post:
+      operationId: signup
+      tags: [auth]
+      summary: Founder signup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/verify-email:
+    post:
+      operationId: verifyEmail
+      tags: [auth]
+      summary: Verify email address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailVerificationInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/resend-verification:
+    post:
+      operationId: resendVerification
+      tags: [auth]
+      summary: Resend verification email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResendVerificationInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /candidates:
+    get:
+      operationId: listCandidates
+      tags: [candidates]
+      summary: List anonymized candidates (opted-in only)
+      parameters:
+        - in: query
+          name: roleCategory
+          schema:
+            type: string
+        - in: query
+          name: seniority
+          schema:
+            type: string
+        - in: query
+          name: location
+          schema:
+            type: string
+        - in: query
+          name: openToRelocation
+          schema:
+            type: boolean
+        - in: query
+          name: yearsExpMin
+          schema:
+            type: integer
+        - in: query
+          name: yearsExpMax
+          schema:
+            type: integer
+        - in: query
+          name: compMin
+          schema:
+            type: integer
+        - in: query
+          name: compMax
+          schema:
+            type: integer
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Candidate"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /candidates/breakdown:
+    get:
+      operationId: getCandidateBreakdown
+      tags: [candidates]
+      summary: Get candidate counts by role category and seniority
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CandidateBreakdown"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /candidates/{id}:
+    get:
+      operationId: getCandidate
+      tags: [candidates]
+      summary: Get single candidate (anonymized for founders, full for admins)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Candidate"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /intro-requests:
+    get:
+      operationId: listIntroRequests
+      tags: [intro-requests]
+      summary: List intro requests (founders see own, admins see all)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IntroRequest"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createIntroRequest
+      tags: [intro-requests]
+      summary: Request an intro to a candidate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IntroRequestInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntroRequest"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Duplicate request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /intro-requests/{id}:
+    patch:
+      operationId: updateIntroRequest
+      tags: [intro-requests]
+      summary: Update intro request status (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IntroRequestUpdate"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntroRequest"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/stats:
+    get:
+      operationId: getAdminStats
+      tags: [admin]
+      summary: Get ecosystem stats
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/candidates:
+    post:
+      operationId: createCandidate
+      tags: [admin]
+      summary: Create a new candidate (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CandidateInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminCandidate"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/candidates/{id}:
+    patch:
+      operationId: updateCandidate
+      tags: [admin]
+      summary: Update a candidate (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CandidateUpdate"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminCandidate"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteCandidate
+      tags: [admin]
+      summary: Delete a candidate (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: No content
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/domains:
+    get:
+      operationId: listDomains
+      tags: [admin]
+      summary: List whitelisted domains (admin only)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Domain"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: addDomain
+      tags: [admin]
+      summary: Add a whitelisted domain (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DomainInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Domain"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Domain already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/domains/{id}:
+    delete:
+      operationId: deleteDomain
+      tags: [admin]
+      summary: Remove a whitelisted domain (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: No content
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/intro-requests:
+    get:
+      operationId: listAdminIntroRequests
+      tags: [admin]
+      summary: List all intro requests with full candidate and founder info (admin only)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminIntroRequest"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +568,476 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
+
+    CurrentUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        name:
+          type: string
+        company:
+          type: ["string", "null"]
+        role:
+          type: string
+          enum: [founder, admin]
+        emailVerified:
+          type: boolean
+      required:
+        - id
+        - email
+        - name
+        - role
+        - emailVerified
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/CurrentUser"
+        message:
+          type: string
+      required:
+        - user
+
+    SignupInput:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+          minLength: 8
+        name:
+          type: string
+        company:
+          type: string
+      required:
+        - email
+        - password
+        - name
+        - company
+
+    LoginInput:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    EmailVerificationInput:
+      type: object
+      properties:
+        token:
+          type: string
+      required:
+        - token
+
+    ResendVerificationInput:
+      type: object
+      properties:
+        email:
+          type: string
+      required:
+        - email
+
+    Candidate:
+      type: object
+      properties:
+        id:
+          type: integer
+        anonymizedHeadline:
+          type: string
+        roleCategory:
+          type: string
+          enum: [Engineering, Sales, Operations, Product, Finance, Marketing, Executive]
+        seniority:
+          type: string
+          enum: [IC, Manager, Director, VP, C-level]
+        yearsExperience:
+          type: integer
+        location:
+          type: string
+        openToRelocation:
+          type: boolean
+        compRangeMin:
+          type: integer
+        compRangeMax:
+          type: integer
+        topSkills:
+          type: array
+          items:
+            type: string
+        summaryBlurb:
+          type: string
+        notableCredentials:
+          type: string
+        status:
+          type: string
+          enum: [opted_in, paused, placed, withdrawn]
+        dateAdded:
+          type: string
+          format: date
+        hasRequestedIntro:
+          type: boolean
+      required:
+        - id
+        - anonymizedHeadline
+        - roleCategory
+        - seniority
+        - yearsExperience
+        - location
+        - openToRelocation
+        - compRangeMin
+        - compRangeMax
+        - topSkills
+        - summaryBlurb
+        - notableCredentials
+        - status
+        - dateAdded
+        - hasRequestedIntro
+
+    AdminCandidate:
+      type: object
+      properties:
+        id:
+          type: integer
+        internalId:
+          type: string
+        realName:
+          type: string
+        anonymizedHeadline:
+          type: string
+        roleCategory:
+          type: string
+          enum: [Engineering, Sales, Operations, Product, Finance, Marketing, Executive]
+        seniority:
+          type: string
+          enum: [IC, Manager, Director, VP, C-level]
+        yearsExperience:
+          type: integer
+        location:
+          type: string
+        openToRelocation:
+          type: boolean
+        compRangeMin:
+          type: integer
+        compRangeMax:
+          type: integer
+        topSkills:
+          type: array
+          items:
+            type: string
+        summaryBlurb:
+          type: string
+        notableCredentials:
+          type: string
+        status:
+          type: string
+          enum: [opted_in, paused, placed, withdrawn]
+        dateAdded:
+          type: string
+          format: date
+      required:
+        - id
+        - internalId
+        - realName
+        - anonymizedHeadline
+        - roleCategory
+        - seniority
+        - yearsExperience
+        - location
+        - openToRelocation
+        - compRangeMin
+        - compRangeMax
+        - topSkills
+        - summaryBlurb
+        - notableCredentials
+        - status
+        - dateAdded
+
+    CandidateInput:
+      type: object
+      properties:
+        internalId:
+          type: string
+        realName:
+          type: string
+        anonymizedHeadline:
+          type: string
+        roleCategory:
+          type: string
+          enum: [Engineering, Sales, Operations, Product, Finance, Marketing, Executive]
+        seniority:
+          type: string
+          enum: [IC, Manager, Director, VP, C-level]
+        yearsExperience:
+          type: integer
+        location:
+          type: string
+        openToRelocation:
+          type: boolean
+        compRangeMin:
+          type: integer
+        compRangeMax:
+          type: integer
+        topSkills:
+          type: array
+          items:
+            type: string
+        summaryBlurb:
+          type: string
+        notableCredentials:
+          type: string
+        status:
+          type: string
+          enum: [opted_in, paused, placed, withdrawn]
+        dateAdded:
+          type: string
+          format: date
+      required:
+        - internalId
+        - realName
+        - anonymizedHeadline
+        - roleCategory
+        - seniority
+        - yearsExperience
+        - location
+        - openToRelocation
+        - compRangeMin
+        - compRangeMax
+        - topSkills
+        - summaryBlurb
+        - notableCredentials
+        - status
+
+    CandidateUpdate:
+      type: object
+      properties:
+        realName:
+          type: string
+        anonymizedHeadline:
+          type: string
+        roleCategory:
+          type: string
+          enum: [Engineering, Sales, Operations, Product, Finance, Marketing, Executive]
+        seniority:
+          type: string
+          enum: [IC, Manager, Director, VP, C-level]
+        yearsExperience:
+          type: integer
+        location:
+          type: string
+        openToRelocation:
+          type: boolean
+        compRangeMin:
+          type: integer
+        compRangeMax:
+          type: integer
+        topSkills:
+          type: array
+          items:
+            type: string
+        summaryBlurb:
+          type: string
+        notableCredentials:
+          type: string
+        status:
+          type: string
+          enum: [opted_in, paused, placed, withdrawn]
+
+    CandidateBreakdown:
+      type: object
+      properties:
+        byRoleCategory:
+          type: array
+          items:
+            type: object
+            properties:
+              category:
+                type: string
+              count:
+                type: integer
+            required:
+              - category
+              - count
+        bySeniority:
+          type: array
+          items:
+            type: object
+            properties:
+              seniority:
+                type: string
+              count:
+                type: integer
+            required:
+              - seniority
+              - count
+        total:
+          type: integer
+      required:
+        - byRoleCategory
+        - bySeniority
+        - total
+
+    IntroRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        candidateId:
+          type: integer
+        candidateHeadline:
+          type: string
+        candidateRoleCategory:
+          type: string
+        founderId:
+          type: integer
+        founderName:
+          type: string
+        founderCompany:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [requested, offered, intro_made, placed, closed]
+        requestedAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - candidateId
+        - candidateHeadline
+        - candidateRoleCategory
+        - founderId
+        - founderName
+        - status
+        - requestedAt
+        - updatedAt
+
+    AdminIntroRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        candidateId:
+          type: integer
+        candidateHeadline:
+          type: string
+        candidateRealName:
+          type: string
+        candidateRoleCategory:
+          type: string
+        founderId:
+          type: integer
+        founderName:
+          type: string
+        founderEmail:
+          type: string
+        founderCompany:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [requested, offered, intro_made, placed, closed]
+        requestedAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - candidateId
+        - candidateHeadline
+        - candidateRealName
+        - candidateRoleCategory
+        - founderId
+        - founderName
+        - founderEmail
+        - status
+        - requestedAt
+        - updatedAt
+
+    IntroRequestInput:
+      type: object
+      properties:
+        candidateId:
+          type: integer
+      required:
+        - candidateId
+
+    IntroRequestUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [requested, offered, intro_made, placed, closed]
+      required:
+        - status
+
+    AdminStats:
+      type: object
+      properties:
+        totalCandidates:
+          type: integer
+        candidatesOffered:
+          type: integer
+        introsMade:
+          type: integer
+        placements:
+          type: integer
+      required:
+        - totalCandidates
+        - candidatesOffered
+        - introsMade
+        - placements
+
+    Domain:
+      type: object
+      properties:
+        id:
+          type: integer
+        domain:
+          type: string
+        companyName:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - domain
+        - createdAt
+
+    DomainInput:
+      type: object
+      properties:
+        domain:
+          type: string
+        companyName:
+          type: string
+      required:
+        - domain

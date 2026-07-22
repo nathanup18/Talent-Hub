@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "Active Impact Talent Hub"
+version = "1.0.0"
+id = "artifacts/talent-hub"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23364
+
+[services.development]
+run = "pnpm --filter @workspace/talent-hub run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/talent-hub", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/talent-hub/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23364"
+BASE_PATH = "/"

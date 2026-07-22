@@ -1,0 +1,35 @@
+Build a web app called "Active Impact Talent Hub", a private talent marketplace for Active Impact Investments (Canada's largest climate tech seed fund) where portfolio company founders browse anonymized, pre-vetted candidates and request intros.
+
+Branding. Download the Active Impact logo from https://images.squarespace-cdn.com/content/v1/65f2027aeabf5a4fbea3d8e7/a4f645ac-14cb-4ae4-a39c-df17d5b4a31c/AII_Logo_Full_Colour.png (full colour, use on light backgrounds) and the white footer version from https://images.squarespace-cdn.com/content/v1/65f2027aeabf5a4fbea3d8e7/caf5c219-5f46-468a-8466-6a6a8fdafd3a/ActiveImpactInvestments_FooterLogo.png (use in the header/nav on dark backgrounds and in the footer). Sample the brand palette programmatically from the full-colour logo: extract the dominant greens and use the darkest as the primary/nav color, the brightest as the accent/CTA color, with an off-white (
+#FAFAF7 or similar) page background and near-black text. The overall feel should match a modern climate fund: clean, generous whitespace, green-forward, no gradients. Typography: Poppins (Google Fonts) for headings, buttons, and UI; IBM Plex Mono for stats, counts, and data values (years of experience, comp ranges, dates). Rounded-lg cards, subtle borders, no heavy shadows.
+
+Stack. React frontend, Express (or similar) backend, Postgres via Replit's built-in database for auth and app data. All secrets in Replit Secrets, never in client code.
+
+Roles and auth.
+
+Founder accounts: sign up with company email + password. Validate the email domain against an admin-managed whitelist of portfolio company domains; reject signups from non-whitelisted domains with a message to contact the Active Impact team. Email verification before first login. Passwords hashed with bcrypt.
+Admin accounts: created by seed script or promoted by another admin. Admins see everything founders see plus real candidate identities, the full intro-request queue, and settings.
+
+Candidate data. Candidates live in a candidates table with: internal_id, real_name (admin-only), anonymized_headline (e.g. "Senior Mechanical Engineer, ex-Tesla"), role_category (Engineering, Sales, Operations, Product, Finance, Marketing, Executive), seniority (IC, Manager, Director, VP, C-level), years_experience, location, open_to_relocation (bool), comp_range_min, comp_range_max, top_skills (array), summary_blurb (2-3 sentences, written to be non-identifying), notable_credentials (anonymized, e.g. "led a 12-person team at a Series C climate company"), status (opted_in, paused, placed, withdrawn), date_added. Only candidates with status = opted_in ever appear to founders. Enforce this in the API layer, not just the UI. Real names and any identifying fields must never be included in API responses to founder-role sessions.
+
+Founder experience.
+
+Dashboard: grid of anonymized candidate cards showing headline, role category, seniority, years of experience, location, top skills as tags, and comp range.
+Filters: role category, seniority, years of experience (range slider), location, relocation flag, comp range. Filters combine.
+Search: keyword search across headline, skills, and summary blurb.
+Candidate detail page: full anonymized profile with a "Request intro" button. Clicking it creates an intro request with the founder's identity and company attached, shows a confirmation that the Active Impact talent team will follow up, and disables the button for that founder/candidate pair to prevent duplicates.
+A "My requests" page listing their requests and status (requested, intro made, not a fit, placed).
+
+Admin experience.
+
+Everything founders see, plus real names visible on candidates.
+Intro request queue: table of all requests with founder, company, candidate real name, date, and a status dropdown (requested, offered, intro made, placed, closed). Status changes are timestamped.
+Candidate management: add/edit candidates, flip opt-in status, mark placements.
+Domain whitelist management for founder signups.
+A stats bar showing four numbers: total candidates in ecosystem, candidates offered (appeared in at least one request or batch), intros made, placements. Pull these live from the data.
+
+Design details. Header: dark green nav bar with the white logo left, nav links right, in Poppins. Candidate cards: white on off-white background, role category as a small colored tag, comp and experience figures in IBM Plex Mono. Empty states should be friendly and on-brand ("No candidates match those filters yet. New candidates drop monthly."). Mobile responsive.
+
+Security requirements. Session-based auth or JWT in httpOnly cookies. Rate-limit login and signup. All candidate-identity fields excluded from founder-facing endpoints at the query level. Admin routes protected by role middleware server-side.
+
+Seed the database with 10 realistic fake candidates across mixed roles and 2 fake whitelisted domains so the app is demoable immediately

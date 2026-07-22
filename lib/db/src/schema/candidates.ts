@@ -1,0 +1,69 @@
+import {
+  pgTable,
+  text,
+  serial,
+  timestamp,
+  integer,
+  boolean,
+  date,
+  pgEnum,
+} from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
+
+export const roleCategoryEnum = pgEnum("role_category", [
+  "Engineering",
+  "Sales",
+  "Operations",
+  "Product",
+  "Finance",
+  "Marketing",
+  "Executive",
+]);
+
+export const seniorityEnum = pgEnum("seniority", [
+  "IC",
+  "Manager",
+  "Director",
+  "VP",
+  "C-level",
+]);
+
+export const candidateStatusEnum = pgEnum("candidate_status", [
+  "opted_in",
+  "paused",
+  "placed",
+  "withdrawn",
+]);
+
+export const candidatesTable = pgTable("candidates", {
+  id: serial("id").primaryKey(),
+  internalId: text("internal_id").notNull().unique(),
+  realName: text("real_name").notNull(),
+  anonymizedHeadline: text("anonymized_headline").notNull(),
+  roleCategory: roleCategoryEnum("role_category").notNull(),
+  seniority: seniorityEnum("seniority").notNull(),
+  yearsExperience: integer("years_experience").notNull(),
+  location: text("location").notNull(),
+  openToRelocation: boolean("open_to_relocation").notNull().default(false),
+  compRangeMin: integer("comp_range_min").notNull(),
+  compRangeMax: integer("comp_range_max").notNull(),
+  topSkills: text("top_skills").array().notNull().default([]),
+  summaryBlurb: text("summary_blurb").notNull(),
+  notableCredentials: text("notable_credentials").notNull(),
+  status: candidateStatusEnum("status").notNull().default("opted_in"),
+  dateAdded: date("date_added", { mode: "string" }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+export const insertCandidateSchema = createInsertSchema(candidatesTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertCandidate = z.infer<typeof insertCandidateSchema>;
+export type Candidate = typeof candidatesTable.$inferSelect;
