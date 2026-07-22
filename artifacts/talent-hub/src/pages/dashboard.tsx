@@ -50,7 +50,7 @@ export default function Dashboard() {
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Talent Pool</h1>
         <p className="text-muted-foreground mt-1 text-sm max-w-xl">
-          Pre-vetted candidates from our network — browse anonymized profiles and request an intro or more information.
+          Pre-vetted candidates from our network. Browse anonymized profiles and request an intro or more information.
         </p>
       </div>
 

@@ -339,8 +339,7 @@ export default function Prospective() {
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Prospective Talent</h1>
           <p className="text-muted-foreground mt-1 text-sm max-w-xl">
-            Candidates at the first screening stage of our pipeline — shown anonymously.
-            Express interest and the Active Impact team will coordinate next steps.
+            Candidates at the first screening stage of our pipeline, shown anonymously. These are potential future introductions - express interest and the Active Impact team will coordinate next steps.
           </p>
         </div>
         {user?.role === "admin" && (
