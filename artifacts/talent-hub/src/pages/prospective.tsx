@@ -138,9 +138,8 @@ function ProspectiveCard({
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0 text-amber-500">
-          <Sparkles className="w-4 h-4" />
-          <span className="text-xs font-medium text-amber-600">1st Screen</span>
+        <div className="shrink-0">
+          <span className="text-xs font-medium text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">1st Screen</span>
         </div>
       </div>
 
@@ -205,7 +204,6 @@ function ProspectiveCard({
           </div>
         ) : (
           <Button className="w-full" onClick={() => onExpressInterest(candidate)}>
-            <Star className="w-4 h-4 mr-2" />
             Express Interest
           </Button>
         )}
