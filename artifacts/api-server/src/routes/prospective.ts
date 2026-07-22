@@ -14,7 +14,6 @@ function paramStr(p: string | string[]): string {
 router.get(
   "/prospective",
   requireAuth,
-  requireVerified,
   async (req, res): Promise<void> => {
     const founderId = req.session.userId!;
 
