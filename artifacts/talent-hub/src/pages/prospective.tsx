@@ -117,11 +117,11 @@ function ProspectiveCard({
   });
 
   return (
-    <div className="bg-card border border-card-border rounded-xl p-6 flex flex-col gap-4 hover:shadow-md transition-shadow">
+    <div className="bg-card border border-card-border rounded-xl p-6 flex flex-col h-full hover:shadow-md transition-shadow">
       {/* Header */}
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-foreground text-base leading-snug">
+          <h3 className="font-semibold text-foreground text-base leading-snug line-clamp-2">
             {candidate.anonymizedHeadline}
           </h3>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
@@ -138,54 +138,46 @@ function ProspectiveCard({
             </span>
           </div>
         </div>
-        <div className="shrink-0">
-          <span className="text-xs font-medium text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">1st Screen</span>
-        </div>
+        <span className="text-xs font-medium text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full shrink-0">
+          1st Screen
+        </span>
       </div>
 
       {/* Location */}
-      <div className="flex items-center gap-1.5 text-muted-foreground text-sm">
+      <div className="flex items-center gap-1.5 text-muted-foreground text-sm mb-3">
         <MapPin className="w-3.5 h-3.5 shrink-0" />
-        <span>{candidate.location}</span>
-        {candidate.educationLevel && (
-          <>
-            <span className="mx-1 text-border">·</span>
-            <span className="capitalize">{candidate.educationLevel}</span>
-          </>
-        )}
+        <span className="truncate">{candidate.location}</span>
         {candidate.yearsExperienceEstimate && (
           <>
-            <span className="mx-1 text-border">·</span>
-            <span>{candidate.yearsExperienceEstimate}</span>
+            <span className="text-border shrink-0">·</span>
+            <span className="shrink-0">{candidate.yearsExperienceEstimate}</span>
           </>
         )}
       </div>
 
-      {/* Blurb */}
-      {candidate.summaryBlurb && (
-        <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
-          {candidate.summaryBlurb}
+      {/* Blurb — fixed 3-line height so all cards reserve the same space */}
+      <div className="flex-1 mb-4">
+        <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3 min-h-[3.75rem]">
+          {candidate.summaryBlurb ?? ""}
         </p>
-      )}
+      </div>
 
-      {/* Skills */}
-      {candidate.topSkills.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {candidate.topSkills.slice(0, 6).map((skill) => (
-            <Badge key={skill} variant="secondary" className="text-xs font-normal">
-              {skill}
-            </Badge>
-          ))}
-          {candidate.topSkills.length > 6 && (
-            <span className="text-xs text-muted-foreground self-center">
-              +{candidate.topSkills.length - 6} more
-            </span>
-          )}
-        </div>
-      )}
+      {/* Skills — one row, max 4 pills */}
+      <div className="flex gap-1.5 mb-4 overflow-hidden h-6">
+        {candidate.topSkills.slice(0, 4).map((skill) => (
+          <Badge key={skill} variant="secondary" className="text-xs font-normal shrink-0">
+            {skill}
+          </Badge>
+        ))}
+        {candidate.topSkills.length > 4 && (
+          <span className="text-xs text-muted-foreground self-center shrink-0">
+            +{candidate.topSkills.length - 4}
+          </span>
+        )}
+      </div>
 
-      {/* CTA */}
-      <div className="pt-1">
+      {/* CTA — always at bottom */}
+      <div className="border-t border-border pt-4 mt-auto">
         {candidate.hasExpressedInterest ? (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-primary text-sm font-medium">
