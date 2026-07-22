@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useListCandidates } from "@workspace/api-client-react";
+import { useListCandidates, useGetCandidateBreakdown } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, MapPin, Briefcase, DollarSign, Filter, X, SlidersHorizontal } from "lucide-react";
@@ -18,6 +18,8 @@ export default function Dashboard() {
     location: "",
     openToRelocation: false,
   });
+
+  const { data: breakdown } = useGetCandidateBreakdown();
 
   const { data: candidates, isLoading } = useListCandidates({
     search: debouncedSearch || undefined,
@@ -92,6 +94,33 @@ export default function Dashboard() {
           </Button>
         )}
       </div>
+
+      {/* Category pills */}
+      {breakdown?.byRoleCategory && breakdown.byRoleCategory.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {breakdown.byRoleCategory.map((item) => (
+            <button
+              key={item.category}
+              onClick={() =>
+                setFilters(prev => ({
+                  ...prev,
+                  roleCategory: prev.roleCategory === item.category ? "" : item.category,
+                }))
+              }
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                filters.roleCategory === item.category
+                  ? "bg-primary text-white border-primary"
+                  : "bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
+              }`}
+            >
+              {item.category}
+              <span className={`ml-1.5 text-xs ${filters.roleCategory === item.category ? "opacity-80" : "opacity-60"}`}>
+                {item.count}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Filter panel — shown inline below the bar */}
       {showFilters && (
