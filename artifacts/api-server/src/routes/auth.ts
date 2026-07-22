@@ -152,11 +152,13 @@ router.post("/auth/login", authLimiter, async (req, res): Promise<void> => {
 
 // POST /auth/logout
 router.post("/auth/logout", async (req, res): Promise<void> => {
-  req.session.destroy((err) => {
-    if (err) {
-      req.log.error({ err }, "Failed to destroy session");
-    }
+  await new Promise<void>((resolve) => {
+    req.session.destroy((err) => {
+      if (err) req.log.error({ err }, "Failed to destroy session");
+      resolve();
+    });
   });
+  res.clearCookie("connect.sid");
   res.json({ success: true });
 });
 

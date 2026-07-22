@@ -28,7 +28,19 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Never retry 401s — the user is not authenticated; retrying just spams the server
+      retry: (failureCount, error: unknown) => {
+        const status = (error as any)?.status;
+        if (status === 401 || status === 403) return false;
+        return failureCount < 2;
+      },
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function Router() {
   return (

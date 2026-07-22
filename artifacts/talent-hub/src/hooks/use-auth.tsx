@@ -16,6 +16,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { data: user, isLoading, isError } = useGetMe({
     query: {
       retry: false,
+      staleTime: 60_000,          // treat /me as fresh for 60s — prevents race refetches
+      refetchOnWindowFocus: false, // don't re-fetch just because user switched tabs
       queryKey: getGetMeQueryKey(),
     }
   });

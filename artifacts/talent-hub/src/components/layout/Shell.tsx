@@ -30,9 +30,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   const handleLogout = async () => {
     await fetch(`${BASE_URL}api/auth/logout`, { method: "POST", credentials: "include" });
-    // Wipe auth cache synchronously so ProtectedRoute redirects immediately
-    queryClient.setQueryData(getGetMeQueryKey(), undefined);
-    setLocation("/login");
+    // Hard navigate — tears down all React state and query cache cleanly
+    window.location.href = "/login";
   };
 
   if (!user) return <>{children}</>;
