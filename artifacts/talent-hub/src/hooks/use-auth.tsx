@@ -57,13 +57,11 @@ export function ProtectedRoute({
   useEffect(() => {
     if (isLoading) return;
     if (!user) { setLocation("/login"); return; }
-    if (!user.emailVerified) { setLocation("/verify-email"); return; }
     if (adminOnly && user.role !== "admin") { setLocation("/dashboard"); return; }
   }, [isLoading, user, adminOnly, setLocation]);
 
   if (isLoading) return <Spinner />;
   if (!user) return null;
-  if (!user.emailVerified) return null;
   if (adminOnly && user.role !== "admin") return null;
 
   return <>{children}</>;
