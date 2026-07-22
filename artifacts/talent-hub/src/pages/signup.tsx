@@ -30,9 +30,9 @@ export default function Signup() {
 
   const onSubmit = (data: z.infer<typeof signupSchema>) => {
     signupMutation.mutate({ data }, {
-      onSuccess: () => {
+      onSuccess: (res: any) => {
         queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-        setLocation("/verify-email");
+        setLocation(res?.user?.role === "admin" ? "/admin" : "/dashboard");
       },
     });
   };

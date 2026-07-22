@@ -112,7 +112,7 @@ export default function Login() {
         <div className="mt-8 text-center text-sm text-muted-foreground border-t border-border pt-6">
           Portfolio company founder?{" "}
           <Link href="/signup" className="text-primary font-medium hover:underline">
-            Request access
+            Create an account
           </Link>
         </div>
       </div>

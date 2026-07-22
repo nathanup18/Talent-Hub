@@ -1,6 +1,5 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { useLogout } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -21,22 +20,19 @@ import {
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
+import { BASE_URL } from "@/lib/api";
 import logoFooterWhite from "@assets/logo-footer-white.png";
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [location, setLocation] = useLocation();
-  const logoutMutation = useLogout();
   const queryClient = useQueryClient();
 
-  const handleLogout = () => {
-    logoutMutation.mutate(undefined, {
-      onSuccess: () => {
-        setLocation("/login");
-        // Invalidate auth query after navigating so the page doesn't flash blank
-        setTimeout(() => queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() }), 50);
-      },
-    });
+  const handleLogout = async () => {
+    await fetch(`${BASE_URL}api/auth/logout`, { method: "POST", credentials: "include" });
+    // Wipe auth cache synchronously so ProtectedRoute redirects immediately
+    queryClient.setQueryData(getGetMeQueryKey(), undefined);
+    setLocation("/login");
   };
 
   if (!user) return <>{children}</>;
@@ -117,7 +113,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive flex items-center gap-2 cursor-pointer"
                   onClick={handleLogout}
-                  disabled={logoutMutation.isPending}
                 >
                   <LogOut className="w-4 h-4" />
                   Sign Out
