@@ -58,16 +58,78 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background">
-      <header className="bg-secondary text-secondary-foreground sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href={isAdmin ? "/admin" : "/dashboard"} className="flex items-center gap-2">
-            <img src={logoFooterWhite} alt="Active Impact" className="h-8 object-contain" />
-            <span className="font-semibold text-lg ml-2 border-l border-white/20 pl-4">
-              Talent Hub
-            </span>
-          </Link>
+      {/* Entire top bar (logo+nav+profile on desktop, logo+profile on mobile) + mobile pill row
+          are wrapped together so the whole block sticks as one unit */}
+      <div className="sticky top-0 z-30 bg-secondary text-secondary-foreground">
+        <header>
+          <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+            <Link href={isAdmin ? "/admin" : "/dashboard"} className="flex items-center gap-2">
+              <img src={logoFooterWhite} alt="Active Impact" className="h-8 object-contain" />
+              <span className="font-semibold text-lg ml-2 border-l border-white/20 pl-4">
+                Talent Hub
+              </span>
+            </Link>
 
-          <nav className="hidden md:flex items-center gap-1">
+            <nav className="hidden md:flex items-center gap-1">
+              {navItems.map((item) => {
+                const isActive =
+                  location === item.href ||
+                  (item.href !== "/admin" &&
+                    item.href !== "/dashboard" &&
+                    location.startsWith(item.href));
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-md transition-colors text-sm font-medium ${
+                      isActive
+                        ? "bg-white/10 text-white"
+                        : "text-white/70 hover:bg-white/5 hover:text-white"
+                    }`}
+                  >
+                    <item.icon className="w-4 h-4" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors outline-none">
+                  <UserCircle className="w-7 h-7 shrink-0" />
+                  <div className="hidden sm:block text-left">
+                    <div className="text-sm font-medium leading-tight">{user.name}</div>
+                    <div className="text-xs text-white/55 leading-tight">
+                      {user.role === "admin" ? "Admin" : user.company}
+                    </div>
+                  </div>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem asChild>
+                  <Link href="/profile" className="flex items-center gap-2 cursor-pointer">
+                    <Settings className="w-4 h-4" />
+                    Edit Profile
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive flex items-center gap-2 cursor-pointer"
+                  onClick={handleLogout}
+                  disabled={logoutMutation.isPending}
+                >
+                  <LogOut className="w-4 h-4" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </header>
+
+        {/* Mobile nav — inside the sticky wrapper so it scrolls with the header as one block */}
+        <div className="md:hidden border-t border-white/10 overflow-x-auto no-scrollbar">
+          <div className="flex px-4 py-2 gap-2 min-w-max">
             {navItems.map((item) => {
               const isActive =
                 location === item.href ||
@@ -78,7 +140,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-md transition-colors text-sm font-medium ${
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors text-sm font-medium ${
                     isActive
                       ? "bg-white/10 text-white"
                       : "text-white/70 hover:bg-white/5 hover:text-white"
@@ -89,62 +151,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 </Link>
               );
             })}
-          </nav>
-
-          {/* Profile dropdown — replaces the raw logout button */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors outline-none">
-                <UserCircle className="w-7 h-7 shrink-0" />
-                <div className="hidden sm:block text-left">
-                  <div className="text-sm font-medium leading-tight">{user.name}</div>
-                  <div className="text-xs text-white/55 leading-tight">
-                    {user.role === "admin" ? "Admin" : user.company}
-                  </div>
-                </div>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem asChild>
-                <Link href="/profile" className="flex items-center gap-2 cursor-pointer">
-                  <Settings className="w-4 h-4" />
-                  Edit Profile
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive flex items-center gap-2 cursor-pointer"
-                onClick={handleLogout}
-                disabled={logoutMutation.isPending}
-              >
-                <LogOut className="w-4 h-4" />
-                Sign Out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </header>
-
-      {/* Mobile nav */}
-      <div className="md:hidden bg-secondary border-t border-white/10 overflow-x-auto no-scrollbar">
-        <div className="flex px-4 py-2 gap-2 min-w-max">
-          {navItems.map((item) => {
-            const isActive = location === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors text-sm font-medium ${
-                  isActive
-                    ? "bg-white/10 text-white"
-                    : "text-white/70 hover:bg-white/5 hover:text-white"
-                }`}
-              >
-                <item.icon className="w-4 h-4" />
-                {item.label}
-              </Link>
-            );
-          })}
+          </div>
         </div>
       </div>
 

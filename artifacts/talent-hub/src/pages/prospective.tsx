@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -310,6 +310,17 @@ export default function Prospective() {
 
   const expressedCount = candidates.filter((c) => c.hasExpressedInterest).length;
 
+  // Tally per-category counts for the overview card
+  const categoryBreakdown = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const c of candidates) {
+      counts[c.roleCategory] = (counts[c.roleCategory] ?? 0) + 1;
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([category, count]) => ({ category, count }));
+  }, [candidates]);
+
   async function handleSync() {
     setSyncing(true);
     try {
@@ -348,34 +359,79 @@ export default function Prospective() {
         )}
       </div>
 
-      {/* Stats bar */}
+      {/* Overview card — same style as Talent Pool dashboard */}
       {!isLoading && candidates.length > 0 && (
-        <div className="flex items-center gap-6 text-sm text-muted-foreground">
-          <div>
-            <span className="font-mono font-semibold text-foreground text-lg">
-              {candidates.length}
-            </span>
-            <span className="ml-1.5">candidates at 1st screen</span>
+        <div className="bg-card border border-card-border rounded-lg p-6 shadow-sm">
+          <div className="flex flex-wrap gap-6 items-center">
+            {/* Total */}
+            <div className="bg-primary/10 rounded-lg p-4 min-w-[160px]">
+              <div className="text-sm text-primary font-medium mb-1">1st Screen Pipeline</div>
+              <div className="text-3xl font-mono font-semibold text-foreground">
+                {candidates.length}
+              </div>
+              {expressedCount > 0 && (
+                <div className="text-xs text-muted-foreground mt-1">
+                  <span className="text-primary font-semibold">{expressedCount}</span> interest{expressedCount !== 1 ? "s" : ""} expressed
+                </div>
+              )}
+            </div>
+
+            {/* Category grid — click to filter */}
+            <div className="flex-1 flex gap-3 flex-wrap">
+              {categoryBreakdown.map((item) => (
+                <button
+                  key={item.category}
+                  onClick={() => {
+                    setSelectedCategory(
+                      selectedCategory === item.category ? "All" : item.category
+                    );
+                  }}
+                  className={`flex-shrink-0 rounded-lg px-4 py-3 min-w-[110px] text-left transition-all border ${
+                    selectedCategory === item.category
+                      ? "bg-primary text-white border-primary shadow-sm"
+                      : "bg-muted border-border hover:border-primary/50 hover:bg-primary/5"
+                  }`}
+                >
+                  <div className={`text-xs mb-1 font-medium ${
+                    selectedCategory === item.category ? "text-white/80" : "text-muted-foreground"
+                  }`}>
+                    {item.category}
+                  </div>
+                  <div className={`text-xl font-mono font-semibold ${
+                    selectedCategory === item.category ? "text-white" : "text-foreground"
+                  }`}>
+                    {item.count}
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
-          {expressedCount > 0 && (
-            <div>
-              <span className="font-mono font-semibold text-primary text-lg">
-                {expressedCount}
-              </span>
-              <span className="ml-1.5">interests expressed</span>
-            </div>
-          )}
-          {candidates[0]?.lastSyncedAt && (
-            <div className="ml-auto text-xs">
-              Updated{" "}
-              {new Date(candidates[0].lastSyncedAt).toLocaleDateString("en-CA", {
-                month: "short",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </div>
-          )}
+
+          {/* Sync timestamp + active filter indicator */}
+          <div className="flex items-center justify-between mt-3">
+            {selectedCategory !== "All" ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                Showing <strong className="text-foreground">{selectedCategory}</strong>
+                <button
+                  onClick={() => setSelectedCategory("All")}
+                  className="text-xs flex items-center gap-1 hover:text-foreground"
+                >
+                  <X className="w-3 h-3" /> Clear
+                </button>
+              </div>
+            ) : <div />}
+            {candidates[0]?.lastSyncedAt && (
+              <div className="text-xs text-muted-foreground">
+                Synced{" "}
+                {new Date(candidates[0].lastSyncedAt).toLocaleDateString("en-CA", {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

@@ -28,11 +28,17 @@ export default function MyRequests() {
   });
 
   const handleCancel = async (id: number) => {
-    await fetch(`${BASE_URL}api/intro-requests/${id}`, {
+    // Optimistic removal — remove instantly from the list
+    queryClient.setQueryData(getListIntroRequestsQueryKey(), (old: any) =>
+      Array.isArray(old) ? old.filter((r: any) => r.id !== id) : old
+    );
+    // Fire-and-forget the DELETE; refetch in the background to reconcile
+    fetch(`${BASE_URL}api/intro-requests/${id}`, {
       method: "DELETE",
       credentials: "include",
+    }).then(() => {
+      queryClient.invalidateQueries({ queryKey: getListIntroRequestsQueryKey() });
     });
-    queryClient.invalidateQueries({ queryKey: getListIntroRequestsQueryKey() });
   };
 
   const getStatusBadge = (status: string) => {
