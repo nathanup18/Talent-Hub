@@ -97,10 +97,7 @@ export default function MyRequests() {
     );
   };
 
-  // Only show non-closed requests by default; closed shown with muted style
-  const activeRequests = requests?.filter((r) => r.status !== "closed") ?? [];
-  const closedRequests = requests?.filter((r) => r.status === "closed") ?? [];
-  const sortedRequests = [...activeRequests, ...closedRequests];
+  const sortedRequests = requests?.filter((r) => r.status !== "closed") ?? [];
 
   return (
     <div className="max-w-5xl mx-auto w-full">
