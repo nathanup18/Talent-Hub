@@ -59,12 +59,14 @@ export default function CandidateProfile() {
     query: { queryKey: getListIntroRequestsQueryKey() },
   });
 
-  // Find any active (non-closed) requests for this candidate
-  const activeRequests = allRequests.filter(
-    (r) => r.candidateId === id && r.status !== "closed"
-  );
-  const introRequest = activeRequests.find((r) => (r as any).requestType !== "more_info");
-  const moreInfoRequest = activeRequests.find((r) => (r as any).requestType === "more_info");
+  // All requests for this candidate
+  const candidateRequests = allRequests.filter((r) => r.candidateId === id);
+  // Active (non-declined) requests
+  const introRequest = candidateRequests.find((r) => (r as any).requestType !== "more_info" && r.status !== "closed");
+  const moreInfoRequest = candidateRequests.find((r) => (r as any).requestType === "more_info" && r.status !== "closed");
+  // Declined requests (status === "closed")
+  const introDeclined = !introRequest && candidateRequests.some((r) => (r as any).requestType !== "more_info" && r.status === "closed");
+  const moreInfoDeclined = !moreInfoRequest && candidateRequests.some((r) => (r as any).requestType === "more_info" && r.status === "closed");
 
   const introMutation = useCreateIntroRequest();
 
@@ -143,10 +145,6 @@ export default function CandidateProfile() {
   const isPlaced = candidate.status === "placed";
   const hasIntro = !!introRequest;
   const hasMoreInfo = !!moreInfoRequest;
-  const hasAnyRequest = hasIntro || hasMoreInfo;
-
-  // All requests for this candidate (including closed/declined) — used for the status banner
-  const allCandidateRequests = allRequests.filter((r) => r.candidateId === id);
 
   return (
     <div className="max-w-4xl mx-auto w-full pb-20">
@@ -157,30 +155,6 @@ export default function CandidateProfile() {
         <ArrowLeft className="w-4 h-4 mr-1" />
         {fromMyRequests ? "Back to My Requests" : "Back to Talent Pool"}
       </Link>
-
-      {/* Status banner — shown when arriving from My Requests */}
-      {fromMyRequests && allCandidateRequests.length > 0 && (
-        <div className="mb-4 bg-card border border-card-border rounded-xl px-6 py-4 flex flex-col gap-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Your Requests</p>
-          <div className="flex flex-wrap gap-3">
-            {allCandidateRequests.map((r) => {
-              const type = (r as any).requestType === "more_info" ? "More Info" : "Intro";
-              const { label, className } = ({
-                requested:  { label: "Pending",    className: "bg-blue-50 text-blue-700 border-blue-200" },
-                offered:    { label: "Offered",    className: "bg-amber-50 text-amber-700 border-amber-200" },
-                intro_made: { label: "Intro Made", className: "bg-green-50 text-green-700 border-green-200" },
-                placed:     { label: "Placed",     className: "bg-purple-50 text-purple-700 border-purple-200" },
-                closed:     { label: "Declined",   className: "bg-red-50 text-red-700 border-red-200" },
-              } as Record<string, { label: string; className: string }>)[r.status] ?? { label: r.status, className: "bg-muted text-muted-foreground border-border" };
-              return (
-                <span key={r.id} className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${className}`}>
-                  {type} · {label}
-                </span>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       <div className="bg-card border border-card-border rounded-xl shadow-sm overflow-hidden mb-6">
         <div className="p-8 md:p-10 border-b border-border">
@@ -238,6 +212,11 @@ export default function CandidateProfile() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
+                  ) : introDeclined ? (
+                    <div className="w-full flex items-center gap-2 text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5 text-sm font-medium">
+                      <XCircle className="w-4 h-4 text-red-500 shrink-0" />
+                      Intro Declined
+                    </div>
                   ) : (
                     <Button
                       onClick={handleRequestIntro}
@@ -270,6 +249,11 @@ export default function CandidateProfile() {
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
+                    </div>
+                  ) : moreInfoDeclined ? (
+                    <div className="w-full flex items-center gap-2 text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5 text-sm font-medium">
+                      <XCircle className="w-4 h-4 text-red-500 shrink-0" />
+                      More Info Declined
                     </div>
                   ) : (
                     <Button
