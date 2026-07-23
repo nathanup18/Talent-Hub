@@ -98,6 +98,7 @@ export default function Profile() {
             onChange={(e) => setName(e.target.value)}
             placeholder="Your full name"
             required
+            autoComplete="name"
           />
         </div>
 
@@ -117,6 +118,12 @@ export default function Profile() {
           <p className="text-sm font-medium">Change Password <span className="text-muted-foreground font-normal">(optional)</span></p>
           <p className="text-xs text-muted-foreground">Leave blank to keep your current password.</p>
         </div>
+
+        {/*
+          Hidden username field anchors the browser's credential autofill to the
+          correct email address, preventing it from dumping the email into Full Name.
+        */}
+        <input type="hidden" autoComplete="username" value={user?.email ?? ""} readOnly />
 
         <div className="space-y-1.5">
           <label className="text-sm font-medium">Current Password</label>
