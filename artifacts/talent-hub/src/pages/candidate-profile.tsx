@@ -1,4 +1,5 @@
 import { useRoute, Link } from "wouter";
+import { useState } from "react";
 import {
   useGetCandidate,
   useCreateIntroRequest,
@@ -13,6 +14,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
   Briefcase,
@@ -33,6 +43,9 @@ export default function CandidateProfile() {
   const id = params?.id ? parseInt(params.id) : 0;
 
   const queryClient = useQueryClient();
+  const [moreInfoOpen, setMoreInfoOpen] = useState(false);
+  const [moreInfoNote, setMoreInfoNote] = useState("");
+
   const { data: candidate, isLoading, isError } = useGetCandidate(id, {
     query: {
       enabled: !!id,
@@ -71,10 +84,12 @@ export default function CandidateProfile() {
   const handleRequestMoreInfo = () => {
     if (!id) return;
     introMutation.mutate(
-      { data: { candidateId: id, requestType: "more_info" } },
+      { data: { candidateId: id, requestType: "more_info", note: moreInfoNote || undefined } as any },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListIntroRequestsQueryKey() });
+          setMoreInfoOpen(false);
+          setMoreInfoNote("");
         },
       }
     );
@@ -162,85 +177,81 @@ export default function CandidateProfile() {
               </div>
             </div>
 
-            {/* CTA area */}
-            <div className="flex-shrink-0 flex flex-col gap-3">
+            {/* CTA area — fixed width so both buttons are identical size */}
+            <div className="flex-shrink-0 w-full md:w-52 flex flex-col gap-2">
               {isPlaced ? (
-                <div className="bg-muted text-muted-foreground rounded-lg px-6 py-4 font-medium text-center border border-border">
+                <div className="bg-muted text-muted-foreground rounded-lg px-4 py-2.5 font-medium text-center text-sm border border-border">
                   Candidate already placed
                 </div>
               ) : (
                 <>
-                  {/* Intro request row */}
-                  <div className="flex items-center gap-2">
-                    {hasIntro ? (
-                      <>
-                        <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2.5 text-sm font-medium">
-                          <CheckCircle2 className="w-4 h-4 text-green-600" />
-                          Intro Requested
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg">
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive cursor-pointer"
-                              onClick={() => handleCancel(introRequest!.id)}
-                            >
-                              Cancel intro request
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </>
-                    ) : (
-                      <Button
-                        onClick={handleRequestIntro}
-                        disabled={introMutation.isPending}
-                        className="w-full md:w-auto"
-                      >
-                        {introMutation.isPending ? "Requesting…" : "Request Intro"}
-                      </Button>
-                    )}
-                  </div>
+                  {/* Intro */}
+                  {hasIntro ? (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2.5 text-sm font-medium">
+                        <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                        Intro Requested
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg shrink-0">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive cursor-pointer"
+                            onClick={() => handleCancel(introRequest!.id)}
+                          >
+                            Cancel intro request
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={handleRequestIntro}
+                      disabled={introMutation.isPending}
+                      className="w-full"
+                    >
+                      {introMutation.isPending ? "Requesting…" : "Request Intro"}
+                    </Button>
+                  )}
 
-                  {/* More info request row */}
-                  <div className="flex items-center gap-2">
-                    {hasMoreInfo ? (
-                      <>
-                        <div className="flex items-center gap-2 text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 text-sm font-medium">
-                          <Info className="w-4 h-4 text-blue-600" />
-                          More Info Requested
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg">
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive cursor-pointer"
-                              onClick={() => handleCancel(moreInfoRequest!.id)}
-                            >
-                              Cancel more info request
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        onClick={handleRequestMoreInfo}
-                        disabled={introMutation.isPending}
-                        className="w-full md:w-auto"
-                      >
-                        <Info className="w-4 h-4 mr-2" />
-                        Request More Info
-                      </Button>
-                    )}
-                  </div>
+                  {/* More Info */}
+                  {hasMoreInfo ? (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 flex items-center gap-2 text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 text-sm font-medium">
+                        <Info className="w-4 h-4 text-blue-600 shrink-0" />
+                        More Info Requested
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg shrink-0">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive cursor-pointer"
+                            onClick={() => handleCancel(moreInfoRequest!.id)}
+                          >
+                            Cancel more info request
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      onClick={() => setMoreInfoOpen(true)}
+                      disabled={introMutation.isPending}
+                      className="w-full"
+                    >
+                      <Info className="w-4 h-4 mr-2" />
+                      Request More Info
+                    </Button>
+                  )}
                 </>
               )}
             </div>
@@ -311,6 +322,50 @@ export default function CandidateProfile() {
           </div>
         </div>
       </div>
+
+      {/* More Info dialog */}
+      <Dialog open={moreInfoOpen} onOpenChange={(o) => { if (!o) { setMoreInfoOpen(false); setMoreInfoNote(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request More Info</DialogTitle>
+            <DialogDescription>
+              Let the Active Impact team know what you'd like to learn about this candidate. They'll follow up with more details.
+            </DialogDescription>
+          </DialogHeader>
+
+          {candidate && (
+            <div className="bg-muted/50 rounded-lg p-4 text-sm">
+              <p className="font-medium">{candidate.anonymizedHeadline}</p>
+              <p className="text-muted-foreground mt-0.5">
+                {candidate.roleCategory} · {candidate.location}
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              Note <span className="text-muted-foreground font-normal">(optional)</span>
+            </label>
+            <Textarea
+              placeholder="e.g. We're looking for someone to lead our climate data platform — curious about their experience with large-scale ML pipelines."
+              rows={3}
+              value={moreInfoNote}
+              onChange={(e) => setMoreInfoNote(e.target.value)}
+              maxLength={500}
+            />
+            <p className="text-xs text-muted-foreground text-right">{moreInfoNote.length}/500</p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setMoreInfoOpen(false); setMoreInfoNote(""); }}>
+              Cancel
+            </Button>
+            <Button onClick={handleRequestMoreInfo} disabled={introMutation.isPending}>
+              {introMutation.isPending ? "Submitting…" : "Submit Request"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
