@@ -159,6 +159,27 @@ router.post(
         updatedAt: introRequest.updatedAt,
       }))
     );
+
+    // Fire Zapier webhook — non-blocking, never delays the response
+    const zapierUrl = process.env.ZAPIER_INTRO_REQUEST_WEBHOOK_URL;
+    if (zapierUrl) {
+      const label = requestType === "more_info" ? "More Info" : "Intro";
+      fetch(zapierUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requestType: label,
+          founderName: founder.name,
+          founderEmail: founder.email,
+          founderCompany: founder.company ?? "",
+          candidateHeadline: candidate.anonymizedHeadline,
+          candidateRoleCategory: candidate.roleCategory,
+          requestedAt: introRequest.requestedAt,
+        }),
+      }).catch((err) => {
+        console.error("[zapier] webhook failed:", err);
+      });
+    }
   }
 );
 
