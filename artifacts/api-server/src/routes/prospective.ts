@@ -74,6 +74,32 @@ router.post(
       });
 
     res.status(201).json({ success: true, teId, hasExpressedInterest: true });
+
+    // Fire Zapier webhook — non-blocking
+    const zapierUrl = process.env.ZAPIER_INTRO_REQUEST_WEBHOOK_URL;
+    if (zapierUrl) {
+      const [founder] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, founderId));
+
+      fetch(zapierUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requestType: "Prospective Interest",
+          founderName: founder?.name ?? "",
+          founderEmail: founder?.email ?? "",
+          founderCompany: founder?.company ?? "",
+          candidateHeadline: candidate.anonymizedHeadline,
+          candidateRoleCategory: candidate.roleCategory,
+          note: note ?? "",
+          requestedAt: new Date(),
+        }),
+      }).catch((err) => {
+        console.error("[zapier] prospective webhook failed:", err);
+      });
+    }
   }
 );
 

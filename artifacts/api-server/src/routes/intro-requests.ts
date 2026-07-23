@@ -160,15 +160,14 @@ router.post(
       }))
     );
 
-    // Fire Zapier webhook — non-blocking, never delays the response
+    // Fire Zapier webhook for More Info requests only — non-blocking
     const zapierUrl = process.env.ZAPIER_INTRO_REQUEST_WEBHOOK_URL;
-    if (zapierUrl) {
-      const label = requestType === "more_info" ? "More Info" : "Intro";
+    if (zapierUrl && requestType === "more_info") {
       fetch(zapierUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          requestType: label,
+          requestType: "More Info",
           founderName: founder.name,
           founderEmail: founder.email,
           founderCompany: founder.company ?? "",
