@@ -61,7 +61,8 @@ router.post("/auth/signup", authLimiter, async (req, res): Promise<void> => {
     return;
   }
 
-  // @activeimpactinvestments.com users are auto-approved as admin (no whitelist check needed)
+  // @activeimpactinvestments.com users bypass the portfolio whitelist and are auto-verified,
+  // but only nathan@ gets admin role — all others sign up as founders.
   const isActiveImpactDomain = domain === "activeimpactinvestments.com";
 
   if (!isActiveImpactDomain) {
@@ -91,8 +92,8 @@ router.post("/auth/signup", authLimiter, async (req, res): Promise<void> => {
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  // All whitelisted-domain users get immediate access — no email verification required
-  const role = isActiveImpactDomain ? "admin" : "founder";
+  // Only nathan@ gets admin; every other signup (including other @activeimpactinvestments.com) is a founder
+  const role = email.toLowerCase() === "nathan@activeimpactinvestments.com" ? "admin" : "founder";
 
   const [user] = await db
     .insert(usersTable)
@@ -143,24 +144,11 @@ router.post("/auth/login", authLimiter, async (req, res): Promise<void> => {
     return;
   }
 
-  // Ensure @activeimpactinvestments.com accounts are always admin,
-  // even if their DB record was created before this rule existed.
-  const loginDomain = email.split("@")[1]?.toLowerCase();
-  let effectiveUser = user;
-  if (loginDomain === "activeimpactinvestments.com" && user.role !== "admin") {
-    const [updated] = await db
-      .update(usersTable)
-      .set({ role: "admin" })
-      .where(eq(usersTable.id, user.id))
-      .returning();
-    if (updated) effectiveUser = updated;
-  }
+  req.session.userId = user.id;
+  req.session.userRole = user.role;
+  req.session.emailVerified = user.emailVerified;
 
-  req.session.userId = effectiveUser.id;
-  req.session.userRole = effectiveUser.role;
-  req.session.emailVerified = effectiveUser.emailVerified;
-
-  res.json({ user: formatUser(effectiveUser) });
+  res.json({ user: formatUser(user) });
 });
 
 // POST /auth/logout
@@ -193,23 +181,11 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     return;
   }
 
-  // Ensure @activeimpactinvestments.com are always admin (live correction)
-  const meDomain = user.email.split("@")[1]?.toLowerCase();
-  let meUser = user;
-  if (meDomain === "activeimpactinvestments.com" && user.role !== "admin") {
-    const [promoted] = await db
-      .update(usersTable)
-      .set({ role: "admin" })
-      .where(eq(usersTable.id, user.id))
-      .returning();
-    if (promoted) meUser = promoted;
-  }
-
   // Refresh session
-  req.session.emailVerified = meUser.emailVerified;
-  req.session.userRole = meUser.role;
+  req.session.emailVerified = user.emailVerified;
+  req.session.userRole = user.role;
 
-  res.json({ user: formatUser(meUser) });
+  res.json({ user: formatUser(user) });
 });
 
 // POST /auth/verify-email
