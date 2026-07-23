@@ -33,6 +33,7 @@ import {
   GraduationCap,
   MoreHorizontal,
   Info,
+  XCircle,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
