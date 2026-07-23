@@ -143,11 +143,24 @@ router.post("/auth/login", authLimiter, async (req, res): Promise<void> => {
     return;
   }
 
-  req.session.userId = user.id;
-  req.session.userRole = user.role;
-  req.session.emailVerified = user.emailVerified;
+  // Ensure @activeimpactinvestments.com accounts are always admin,
+  // even if their DB record was created before this rule existed.
+  const loginDomain = email.split("@")[1]?.toLowerCase();
+  let effectiveUser = user;
+  if (loginDomain === "activeimpactinvestments.com" && user.role !== "admin") {
+    const [updated] = await db
+      .update(usersTable)
+      .set({ role: "admin" })
+      .where(eq(usersTable.id, user.id))
+      .returning();
+    if (updated) effectiveUser = updated;
+  }
 
-  res.json({ user: formatUser(user) });
+  req.session.userId = effectiveUser.id;
+  req.session.userRole = effectiveUser.role;
+  req.session.emailVerified = effectiveUser.emailVerified;
+
+  res.json({ user: formatUser(effectiveUser) });
 });
 
 // POST /auth/logout
@@ -180,11 +193,23 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     return;
   }
 
-  // Refresh session
-  req.session.emailVerified = user.emailVerified;
-  req.session.userRole = user.role;
+  // Ensure @activeimpactinvestments.com are always admin (live correction)
+  const meDomain = user.email.split("@")[1]?.toLowerCase();
+  let meUser = user;
+  if (meDomain === "activeimpactinvestments.com" && user.role !== "admin") {
+    const [promoted] = await db
+      .update(usersTable)
+      .set({ role: "admin" })
+      .where(eq(usersTable.id, user.id))
+      .returning();
+    if (promoted) meUser = promoted;
+  }
 
-  res.json({ user: formatUser(user) });
+  // Refresh session
+  req.session.emailVerified = meUser.emailVerified;
+  req.session.userRole = meUser.role;
+
+  res.json({ user: formatUser(meUser) });
 });
 
 // POST /auth/verify-email

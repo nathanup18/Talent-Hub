@@ -107,6 +107,7 @@ export default function Profile() {
             value={company}
             onChange={(e) => setCompany(e.target.value)}
             placeholder="Your company name"
+            autoComplete="organization"
           />
         </div>
 
