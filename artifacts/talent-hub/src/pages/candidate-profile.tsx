@@ -1,4 +1,4 @@
-import { useRoute, Link } from "wouter";
+import { useRoute, useSearch, Link } from "wouter";
 import { useState } from "react";
 import {
   useGetCandidate,
@@ -41,6 +41,8 @@ import { BASE_URL } from "@/lib/api";
 export default function CandidateProfile() {
   const [, params] = useRoute("/candidates/:id");
   const id = params?.id ? parseInt(params.id) : 0;
+  const search = useSearch();
+  const fromMyRequests = new URLSearchParams(search).get("from") === "my-requests";
 
   const queryClient = useQueryClient();
   const [moreInfoOpen, setMoreInfoOpen] = useState(false);
@@ -143,14 +145,42 @@ export default function CandidateProfile() {
   const hasMoreInfo = !!moreInfoRequest;
   const hasAnyRequest = hasIntro || hasMoreInfo;
 
+  // All requests for this candidate (including closed/declined) — used for the status banner
+  const allCandidateRequests = allRequests.filter((r) => r.candidateId === id);
+
   return (
     <div className="max-w-4xl mx-auto w-full pb-20">
       <Link
-        href="/dashboard"
+        href={fromMyRequests ? "/my-requests" : "/dashboard"}
         className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
       >
-        <ArrowLeft className="w-4 h-4 mr-1" /> Back to Talent Pool
+        <ArrowLeft className="w-4 h-4 mr-1" />
+        {fromMyRequests ? "Back to My Requests" : "Back to Talent Pool"}
       </Link>
+
+      {/* Status banner — shown when arriving from My Requests */}
+      {fromMyRequests && allCandidateRequests.length > 0 && (
+        <div className="mb-4 bg-card border border-card-border rounded-xl px-6 py-4 flex flex-col gap-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Your Requests</p>
+          <div className="flex flex-wrap gap-3">
+            {allCandidateRequests.map((r) => {
+              const type = (r as any).requestType === "more_info" ? "More Info" : "Intro";
+              const { label, className } = ({
+                requested:  { label: "Pending",    className: "bg-blue-50 text-blue-700 border-blue-200" },
+                offered:    { label: "Offered",    className: "bg-amber-50 text-amber-700 border-amber-200" },
+                intro_made: { label: "Intro Made", className: "bg-green-50 text-green-700 border-green-200" },
+                placed:     { label: "Placed",     className: "bg-purple-50 text-purple-700 border-purple-200" },
+                closed:     { label: "Declined",   className: "bg-red-50 text-red-700 border-red-200" },
+              } as Record<string, { label: string; className: string }>)[r.status] ?? { label: r.status, className: "bg-muted text-muted-foreground border-border" };
+              return (
+                <span key={r.id} className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${className}`}>
+                  {type} · {label}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="bg-card border border-card-border rounded-xl shadow-sm overflow-hidden mb-6">
         <div className="p-8 md:p-10 border-b border-border">

@@ -172,7 +172,7 @@ export default function MyRequests() {
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <Link
-                            href={`/candidates/${request.candidateId}`}
+                            href={`/candidates/${request.candidateId}?from=my-requests`}
                             className="text-primary hover:underline font-medium text-sm"
                           >
                             View
