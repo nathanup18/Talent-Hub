@@ -192,9 +192,10 @@ router.delete(
       return;
     }
 
+    // Hard-delete founder cancellation so the record is gone.
+    // "closed" status is reserved for admin-declined requests only.
     await db
-      .update(introRequestsTable)
-      .set({ status: "closed" })
+      .delete(introRequestsTable)
       .where(eq(introRequestsTable.id, id));
 
     res.json({ success: true });

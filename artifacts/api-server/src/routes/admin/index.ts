@@ -5,6 +5,7 @@ import {
   candidatesTable,
   domainsTable,
   introRequestsTable,
+  teProspectiveCacheTable,
   usersTable,
 } from "@workspace/db";
 import { requireAdmin } from "../../middlewares/auth";
@@ -282,6 +283,78 @@ router.delete(
   }
 );
 
+// POST /admin/prospective — manually add a prospective candidate
+router.post("/admin/prospective", requireAdmin, async (req, res): Promise<void> => {
+  const schema = {
+    anonymizedHeadline: "string",
+    roleCategory: "string",
+    seniority: "string",
+    location: "string",
+    topSkills: "array",
+    summaryBlurb: "string",
+    educationLevel: "string|null",
+    yearsExperienceEstimate: "string|null",
+  };
+  void schema;
+
+  const body = req.body as {
+    anonymizedHeadline: string;
+    roleCategory: string;
+    seniority: string;
+    location: string;
+    topSkills: string[];
+    summaryBlurb: string;
+    educationLevel?: string | null;
+    yearsExperienceEstimate?: string | null;
+  };
+
+  if (!body.anonymizedHeadline || !body.roleCategory || !body.seniority || !body.location) {
+    res.status(400).json({ error: "Missing required fields" });
+    return;
+  }
+
+  // Generate a unique manual ID so it won't collide with TE IDs
+  const teId = `MANUAL-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+  const [entry] = await db
+    .insert(teProspectiveCacheTable)
+    .values({
+      teId,
+      anonymizedHeadline: body.anonymizedHeadline,
+      roleCategory: body.roleCategory,
+      seniority: body.seniority,
+      location: body.location,
+      topSkills: Array.isArray(body.topSkills) ? body.topSkills : [],
+      summaryBlurb: body.summaryBlurb ?? "",
+      educationLevel: body.educationLevel ?? null,
+      yearsExperienceEstimate: body.yearsExperienceEstimate ?? null,
+    })
+    .returning();
+
+  res.status(201).json(entry);
+});
+
+// DELETE /admin/prospective/:teId — remove a manually-added prospective entry
+router.delete("/admin/prospective/:teId", requireAdmin, async (req, res): Promise<void> => {
+  const { teId } = req.params;
+  if (!teId) {
+    res.status(400).json({ error: "Missing teId" });
+    return;
+  }
+
+  const [deleted] = await db
+    .delete(teProspectiveCacheTable)
+    .where(eq(teProspectiveCacheTable.teId, teId))
+    .returning();
+
+  if (!deleted) {
+    res.status(404).json({ error: "Entry not found" });
+    return;
+  }
+
+  res.sendStatus(204);
+});
+
 // GET /admin/intro-requests
 router.get(
   "/admin/intro-requests",
@@ -299,6 +372,7 @@ router.get(
         founderEmail: usersTable.email,
         founderCompany: usersTable.company,
         status: introRequestsTable.status,
+        requestType: introRequestsTable.requestType,
         requestedAt: introRequestsTable.requestedAt,
         updatedAt: introRequestsTable.updatedAt,
       })

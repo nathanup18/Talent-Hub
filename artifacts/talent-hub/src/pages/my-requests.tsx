@@ -69,8 +69,8 @@ export default function MyRequests() {
         );
       case "closed":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
-            <XCircle className="w-3 h-3" /> Cancelled
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-200">
+            <XCircle className="w-3 h-3" /> Declined
           </span>
         );
       default:
@@ -97,7 +97,8 @@ export default function MyRequests() {
     );
   };
 
-  const sortedRequests = requests?.filter((r) => r.status !== "closed") ?? [];
+  // Show all requests, including admin-declined ones ("closed" = declined by team)
+  const sortedRequests = requests ?? [];
 
   return (
     <div className="max-w-5xl mx-auto w-full">

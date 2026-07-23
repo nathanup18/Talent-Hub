@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Search,
   X,
+  Plus,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { BASE_URL } from "@/lib/api";
@@ -72,6 +73,34 @@ async function withdrawInterest(teId: string) {
   return res.json();
 }
 
+async function addProspectiveEntry(data: {
+  anonymizedHeadline: string;
+  roleCategory: string;
+  seniority: string;
+  location: string;
+  topSkills: string[];
+  summaryBlurb: string;
+  educationLevel?: string;
+  yearsExperienceEstimate?: string;
+}) {
+  const res = await fetch(`${BASE_URL}api/admin/prospective`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to add entry");
+  return res.json();
+}
+
+async function deleteProspectiveEntry(teId: string) {
+  const res = await fetch(`${BASE_URL}api/admin/prospective/${encodeURIComponent(teId)}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Failed to delete entry");
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -101,20 +130,159 @@ function matchesSearch(c: ProspectiveCandidate, q: string): boolean {
   );
 }
 
+// ─── Admin Add Dialog ─────────────────────────────────────────────────────────
+
+const ROLE_CATEGORIES = ["Engineering", "Sales", "Product", "Operations", "Finance", "Marketing", "Executive"];
+const SENIORITIES = ["IC", "Manager", "Director", "VP", "C-level"];
+
+function AddProspectiveDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({
+    anonymizedHeadline: "",
+    roleCategory: "Engineering",
+    seniority: "IC",
+    location: "",
+    topSkills: "",
+    summaryBlurb: "",
+    educationLevel: "",
+    yearsExperienceEstimate: "",
+  });
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      addProspectiveEntry({
+        ...form,
+        topSkills: form.topSkills.split(",").map((s) => s.trim()).filter(Boolean),
+        educationLevel: form.educationLevel || undefined,
+        yearsExperienceEstimate: form.yearsExperienceEstimate || undefined,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["prospective"] });
+      onClose();
+      setForm({
+        anonymizedHeadline: "",
+        roleCategory: "Engineering",
+        seniority: "IC",
+        location: "",
+        topSkills: "",
+        summaryBlurb: "",
+        educationLevel: "",
+        yearsExperienceEstimate: "",
+      });
+    },
+  });
+
+  const handle = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Add Prospective Candidate</DialogTitle>
+          <DialogDescription>
+            Manually add a candidate to the 1st Screen pipeline. This entry will appear anonymously to founders.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
+          <div className="md:col-span-2 space-y-1.5">
+            <label className="text-sm font-medium">Anonymized Headline *</label>
+            <Input
+              name="anonymizedHeadline"
+              required
+              value={form.anonymizedHeadline}
+              onChange={handle}
+              placeholder="Senior Backend Engineer with climate-tech SaaS background"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Role Category *</label>
+            <select name="roleCategory" value={form.roleCategory} onChange={handle}
+              className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
+              {ROLE_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Seniority *</label>
+            <select name="seniority" value={form.seniority} onChange={handle}
+              className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
+              {SENIORITIES.map((s) => <option key={s}>{s}</option>)}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Location *</label>
+            <Input name="location" required value={form.location} onChange={handle} placeholder="Vancouver, BC" />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Years Experience Estimate</label>
+            <Input name="yearsExperienceEstimate" value={form.yearsExperienceEstimate} onChange={handle} placeholder="5+ years" />
+          </div>
+
+          <div className="md:col-span-2 space-y-1.5">
+            <label className="text-sm font-medium">Top Skills (comma-separated) *</label>
+            <Input name="topSkills" required value={form.topSkills} onChange={handle} placeholder="React, Node.js, AWS, Python" />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Education Level</label>
+            <Input name="educationLevel" value={form.educationLevel} onChange={handle} placeholder="B.Sc. Computer Science" />
+          </div>
+
+          <div className="md:col-span-2 space-y-1.5">
+            <label className="text-sm font-medium">Summary Blurb *</label>
+            <Textarea
+              name="summaryBlurb"
+              required
+              value={form.summaryBlurb}
+              onChange={handle}
+              rows={4}
+              placeholder="Brief anonymized background of the candidate…"
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending || !form.anonymizedHeadline || !form.location || !form.topSkills || !form.summaryBlurb}
+          >
+            {mutation.isPending ? "Adding…" : "Add Candidate"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
 function ProspectiveCard({
   candidate,
   onExpressInterest,
+  isAdmin = false,
 }: {
   candidate: ProspectiveCandidate;
   onExpressInterest: (c: ProspectiveCandidate) => void;
+  isAdmin?: boolean;
 }) {
   const qc = useQueryClient();
   const withdrawMutation = useMutation({
     mutationFn: () => withdrawInterest(candidate.teId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["prospective"] }),
   });
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteProspectiveEntry(candidate.teId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["prospective"] }),
+  });
+
+  const isManual = candidate.teId.startsWith("MANUAL-");
 
   return (
     <div className="bg-card border border-card-border rounded-xl p-6 flex flex-col h-full hover:shadow-md transition-shadow">
@@ -177,7 +345,7 @@ function ProspectiveCard({
       </div>
 
       {/* CTA — always at bottom */}
-      <div className="border-t border-border pt-4 mt-auto">
+      <div className="border-t border-border pt-4 mt-auto space-y-2">
         {candidate.hasExpressedInterest ? (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-primary text-sm font-medium">
@@ -197,6 +365,17 @@ function ProspectiveCard({
         ) : (
           <Button className="w-full" onClick={() => onExpressInterest(candidate)}>
             Express Interest
+          </Button>
+        )}
+        {isAdmin && isManual && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full text-xs text-red-500 hover:text-red-700 hover:bg-red-50 h-7"
+            onClick={() => { if (confirm("Remove this entry?")) deleteMutation.mutate(); }}
+            disabled={deleteMutation.isPending}
+          >
+            Remove entry
           </Button>
         )}
       </div>
@@ -282,11 +461,13 @@ const CATEGORIES = [
 
 export default function Prospective() {
   const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const qc = useQueryClient();
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCandidate, setSelectedCandidate] = useState<ProspectiveCandidate | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
   const { data: candidates = [], isLoading, error } = useQuery({
     queryKey: ["prospective"],
@@ -334,17 +515,25 @@ export default function Prospective() {
             Candidates at the first screening stage of our pipeline, shown anonymously. These are potential future introductions. Express interest and the Active Impact team will coordinate next steps.
           </p>
         </div>
-        {user?.role === "admin" && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSync}
-            disabled={syncing}
-            className="shrink-0"
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
-            Sync from TE
-          </Button>
+        {isAdmin && (
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              onClick={() => setAddOpen(true)}
+              className="gap-1.5"
+            >
+              <Plus className="w-4 h-4" /> Add Entry
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSync}
+              disabled={syncing}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
+              Sync from TE
+            </Button>
+          </div>
         )}
       </div>
 
@@ -446,6 +635,7 @@ export default function Prospective() {
               key={c.teId}
               candidate={c}
               onExpressInterest={setSelectedCandidate}
+              isAdmin={isAdmin}
             />
           ))}
         </div>
@@ -454,6 +644,11 @@ export default function Prospective() {
       <InterestDialog
         candidate={selectedCandidate}
         onClose={() => setSelectedCandidate(null)}
+      />
+
+      <AddProspectiveDialog
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
       />
     </div>
   );

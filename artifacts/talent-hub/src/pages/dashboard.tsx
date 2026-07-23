@@ -3,10 +3,13 @@ import { Link } from "wouter";
 import { useListCandidates, useGetCandidateBreakdown } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, MapPin, Briefcase, DollarSign, Filter, X, SlidersHorizontal } from "lucide-react";
+import { Search, MapPin, Briefcase, DollarSign, Filter, X, SlidersHorizontal, Plus } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function Dashboard() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 500);
   const [showFilters, setShowFilters] = useState(false);
@@ -49,11 +52,20 @@ export default function Dashboard() {
   return (
     <div className="flex flex-col gap-4">
       {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Talent Pool</h1>
-        <p className="text-muted-foreground mt-1 text-sm max-w-xl">
-          Pre-vetted candidates from our network. Browse anonymized profiles and request an intro or more information.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Talent Pool</h1>
+          <p className="text-muted-foreground mt-1 text-sm max-w-xl">
+            Pre-vetted candidates from our network. Browse anonymized profiles and request an intro or more information.
+          </p>
+        </div>
+        {isAdmin && (
+          <Link href="/admin/candidates">
+            <Button size="sm" className="shrink-0 gap-1.5">
+              <Plus className="w-4 h-4" /> Add Candidate
+            </Button>
+          </Link>
+        )}
       </div>
 
       {/* Search + Filters bar */}
