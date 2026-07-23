@@ -24,6 +24,7 @@ import {
   Search,
   X,
   Plus,
+  DollarSign,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { BASE_URL } from "@/lib/api";
@@ -40,6 +41,7 @@ interface ProspectiveCandidate {
   summaryBlurb: string;
   educationLevel: string | null;
   yearsExperienceEstimate: string | null;
+  compExpectation: string | null;
   hasExpressedInterest: boolean;
   lastSyncedAt: string;
   screeningDate: string | null;
@@ -311,8 +313,8 @@ function ProspectiveCard({
         </span>
       </div>
 
-      {/* Location */}
-      <div className="flex items-center gap-1.5 text-muted-foreground text-sm mb-3">
+      {/* Location + experience */}
+      <div className="flex items-center gap-1.5 text-muted-foreground text-sm mb-1.5">
         <MapPin className="w-3.5 h-3.5 shrink-0" />
         <span className="truncate">{candidate.location}</span>
         {candidate.yearsExperienceEstimate && (
@@ -322,6 +324,15 @@ function ProspectiveCard({
           </>
         )}
       </div>
+
+      {/* Comp expectation */}
+      {candidate.compExpectation && (
+        <div className="flex items-center gap-1.5 text-muted-foreground text-sm mb-3">
+          <DollarSign className="w-3.5 h-3.5 shrink-0" />
+          <span>{candidate.compExpectation}</span>
+        </div>
+      )}
+      {!candidate.compExpectation && <div className="mb-3" />}
 
       {/* Blurb — fixed 3-line height so all cards reserve the same space */}
       <div className="flex-1 mb-4">

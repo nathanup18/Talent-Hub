@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
+import { z } from "zod/v4";
 import {
   db,
   candidatesTable,
@@ -353,6 +354,55 @@ router.delete("/admin/prospective/:teId", requireAdmin, async (req, res): Promis
   }
 
   res.sendStatus(204);
+});
+
+// POST /admin/prospective/bulk-sync — replaces all TE-sourced records with fresh data from MCP sync
+router.post("/admin/prospective/bulk-sync", requireAdmin, async (req, res): Promise<void> => {
+  const schema = z.array(z.object({
+    teId: z.string(),
+    anonymizedHeadline: z.string(),
+    roleCategory: z.string(),
+    seniority: z.string(),
+    location: z.string(),
+    topSkills: z.array(z.string()).default([]),
+    summaryBlurb: z.string().default(""),
+    educationLevel: z.string().nullable().optional(),
+    yearsExperienceEstimate: z.string().nullable().optional(),
+    compExpectation: z.string().nullable().optional(),
+    screeningDate: z.string().nullable().optional(),
+  }));
+
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  // Delete all non-manual TE records, then insert fresh ones
+  await db
+    .delete(teProspectiveCacheTable)
+    .where(sql`${teProspectiveCacheTable.teId} NOT LIKE 'MANUAL-%'`);
+
+  if (parsed.data.length > 0) {
+    await db.insert(teProspectiveCacheTable).values(
+      parsed.data.map((r) => ({
+        teId: r.teId,
+        anonymizedHeadline: r.anonymizedHeadline,
+        roleCategory: r.roleCategory,
+        seniority: r.seniority,
+        location: r.location,
+        topSkills: r.topSkills,
+        summaryBlurb: r.summaryBlurb,
+        educationLevel: r.educationLevel ?? null,
+        yearsExperienceEstimate: r.yearsExperienceEstimate ?? null,
+        compExpectation: r.compExpectation ?? null,
+        screeningDate: r.screeningDate ? new Date(r.screeningDate) : null,
+        lastSyncedAt: new Date(),
+      }))
+    );
+  }
+
+  res.json({ success: true, count: parsed.data.length });
 });
 
 // GET /admin/intro-requests

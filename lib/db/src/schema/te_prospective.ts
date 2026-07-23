@@ -17,6 +17,7 @@ export const teProspectiveCacheTable = pgTable("te_prospective_cache", {
   summaryBlurb: text("summary_blurb").notNull().default(""),
   educationLevel: text("education_level"),
   yearsExperienceEstimate: text("years_experience_estimate"),
+  compExpectation: text("comp_expectation"),
   lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }).notNull().defaultNow(),
   screeningDate: timestamp("screening_date", { withTimezone: true }),
 });

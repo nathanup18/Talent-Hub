@@ -17,7 +17,21 @@ router.get(
   async (req, res): Promise<void> => {
     const founderId = req.session.userId!;
 
-    const candidates = await db.select().from(teProspectiveCacheTable);
+    const allCandidates = await db.select().from(teProspectiveCacheTable);
+
+    // Deduplicate by roleCategory — one listing per role.
+    // For TE-sourced entries, keep the most recently synced one per category.
+    // Manual entries (MANUAL- prefix) are always kept individually.
+    const seen = new Map<string, typeof allCandidates[0]>();
+    for (const c of allCandidates) {
+      if (c.teId.startsWith("MANUAL-")) continue; // handled separately
+      const existing = seen.get(c.roleCategory);
+      if (!existing || c.lastSyncedAt > existing.lastSyncedAt) {
+        seen.set(c.roleCategory, c);
+      }
+    }
+    const manuals = allCandidates.filter((c) => c.teId.startsWith("MANUAL-"));
+    const candidates = [...seen.values(), ...manuals];
 
     const interests = await db
       .select({ teId: teInterestsTable.teId })
@@ -36,6 +50,7 @@ router.get(
         summaryBlurb: c.summaryBlurb,
         educationLevel: c.educationLevel,
         yearsExperienceEstimate: c.yearsExperienceEstimate,
+        compExpectation: c.compExpectation,
         hasExpressedInterest: interestedIds.has(c.teId),
         lastSyncedAt: c.lastSyncedAt,
         screeningDate: c.screeningDate,
