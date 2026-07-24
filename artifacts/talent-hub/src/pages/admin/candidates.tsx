@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { 
-  useListCandidates, 
+import { useState, useEffect } from "react";
+import {
+  useListCandidates,
   useCreateCandidate, 
   useUpdateCandidate, 
   useDeleteCandidate,
@@ -9,9 +9,11 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Plus, Search, Edit2, Trash2, X } from "lucide-react";
+import { Plus, Search, Edit2, Trash2, X, Link2, Mail, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { BASE_URL } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 export default function AdminCandidates() {
   const [search, setSearch] = useState("");
@@ -154,6 +156,199 @@ export default function AdminCandidates() {
           candidate={editingCandidate} 
           onClose={closeModal} 
         />
+      )}
+    </div>
+  );
+}
+
+interface CandidateContact {
+  fullName: string | null;
+  email: string | null;
+  phone: string | null;
+  linkedin: string | null;
+  teId: string | null;
+  source: string;
+}
+
+// Private "connected record": the real identity behind the anonymized candidate,
+// used to auto-make an introduction. Admin-only; never shown to founders.
+function ConnectedRecord({ candidateId }: { candidateId: number }) {
+  const { toast } = useToast();
+  const [contact, setContact] = useState<CandidateContact | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const [form, setForm] = useState({ fullName: "", email: "", phone: "", linkedin: "", teId: "" });
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`${BASE_URL}api/admin/candidates/${candidateId}/contact`, {
+          credentials: "include",
+        });
+        const data = res.ok ? await res.json() : null;
+        if (cancelled) return;
+        setContact(data);
+        if (data) {
+          setForm({
+            fullName: data.fullName ?? "",
+            email: data.email ?? "",
+            phone: data.phone ?? "",
+            linkedin: data.linkedin ?? "",
+            teId: data.teId ?? "",
+          });
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [candidateId]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`${BASE_URL}api/admin/candidates/${candidateId}/contact`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: form.fullName || null,
+          email: form.email || null,
+          phone: form.phone || null,
+          linkedin: form.linkedin || null,
+          teId: form.teId || null,
+        }),
+      });
+      if (res.ok) {
+        setContact(await res.json());
+        toast({ title: "Connected record saved" });
+      } else {
+        const b = await res.json().catch(() => ({}));
+        toast({ title: "Could not save", description: b.error ?? `HTTP ${res.status}`, variant: "destructive" });
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const linkTe = async () => {
+    if (!form.teId.trim()) {
+      toast({ title: "Enter a Top Echelon ID first", variant: "destructive" });
+      return;
+    }
+    setLinking(true);
+    try {
+      const res = await fetch(`${BASE_URL}api/admin/candidates/${candidateId}/link-te`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teId: form.teId.trim() }),
+      });
+      const b = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setContact(b);
+        setForm({
+          fullName: b.fullName ?? "",
+          email: b.email ?? "",
+          phone: b.phone ?? "",
+          linkedin: b.linkedin ?? "",
+          teId: b.teId ?? "",
+        });
+        toast({ title: "Pulled from Top Echelon", description: b.email ?? "No email on file in TE." });
+      } else {
+        toast({ title: "TE lookup failed", description: b.error ?? `HTTP ${res.status}`, variant: "destructive" });
+      }
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  const introReady = !!contact?.email;
+
+  return (
+    <div className="md:col-span-2 border-t border-border pt-5 mt-1">
+      <div className="flex items-center gap-2 mb-1">
+        <h3 className="text-sm font-semibold">Connected record</h3>
+        {!loading &&
+          (introReady ? (
+            <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
+              <CheckCircle2 className="w-3 h-3" /> Intro-ready
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+              No email — intro can't auto-send
+            </span>
+          ))}
+      </div>
+      <p className="text-xs text-muted-foreground mb-4">
+        Private. Never shown to founders. Used to auto-make the introduction when a founder requests an intro.
+      </p>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">Real name</label>
+            <Input
+              value={form.fullName}
+              onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
+              placeholder="Defaults to the candidate's real name"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">Email (for the intro)</label>
+            <Input
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+              placeholder="candidate@email.com"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">Phone</label>
+            <Input
+              value={form.phone}
+              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              placeholder="Optional"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">LinkedIn</label>
+            <Input
+              value={form.linkedin}
+              onChange={(e) => setForm((f) => ({ ...f, linkedin: e.target.value }))}
+              placeholder="Optional"
+            />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">Top Echelon ID</label>
+            <div className="flex gap-2">
+              <Input
+                value={form.teId}
+                onChange={(e) => setForm((f) => ({ ...f, teId: e.target.value }))}
+                placeholder="TE person id — pull name/email/phone automatically"
+              />
+              <Button type="button" variant="outline" onClick={linkTe} disabled={linking} className="shrink-0 gap-1.5">
+                {linking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+                Pull from TE
+              </Button>
+            </div>
+          </div>
+          <div className="md:col-span-2 flex justify-end">
+            <Button type="button" onClick={save} disabled={saving} className="gap-1.5">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+              Save connected record
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -323,7 +518,9 @@ function CandidateFormModal({ candidate, onClose }: { candidate: any | null, onC
               <input type="checkbox" id="openToRelocation" name="openToRelocation" checked={formData.openToRelocation} onChange={handleChange} className="rounded border-input text-primary h-4 w-4" />
               <label htmlFor="openToRelocation" className="text-sm font-medium">Open to Relocation</label>
             </div>
-            
+
+            {isEditing && candidate?.id != null && <ConnectedRecord candidateId={candidate.id} />}
+
           </form>
         </div>
         

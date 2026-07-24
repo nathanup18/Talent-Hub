@@ -5,6 +5,7 @@ import {
   db,
   introRequestsTable,
   candidatesTable,
+  candidateContactsTable,
   usersTable,
 } from "@workspace/db";
 import { requireAuth, requireAdmin, requireVerified } from "../middlewares/auth";
@@ -160,6 +161,28 @@ router.post(
       }))
     );
 
+    // For a real intro request, pull the private connected record so the Zap
+    // can auto-make the introduction. `more_info` requests never get contact.
+    let contact:
+      | { fullName: string | null; email: string | null; phone: string | null; linkedin: string | null }
+      | null = null;
+    if (requestType === "intro") {
+      const [row] = await db
+        .select()
+        .from(candidateContactsTable)
+        .where(eq(candidateContactsTable.candidateId, candidate.id));
+      if (row) {
+        contact = {
+          fullName: row.fullName,
+          email: row.email,
+          phone: row.phone,
+          linkedin: row.linkedin,
+        };
+      }
+    }
+    // Auto-intro is ready only when we actually have an email to introduce to.
+    const introReady = requestType === "intro" && !!contact?.email;
+
     // Fire Zapier webhook — non-blocking, never delays the response
     const zapierUrl = process.env.ZAPIER_INTRO_REQUEST_WEBHOOK_URL;
     if (zapierUrl) {
@@ -174,6 +197,14 @@ router.post(
           candidateHeadline: candidate.anonymizedHeadline,
           candidateRoleCategory: candidate.roleCategory,
           requestedAt: introRequest.requestedAt,
+          // Auto-intro fields: present only for real intro requests. When
+          // introReady is true the Zap has both sides' emails and can send the
+          // introduction without any manual admin lookup.
+          introReady,
+          candidateName: contact?.fullName ?? null,
+          candidateEmail: contact?.email ?? null,
+          candidatePhone: contact?.phone ?? null,
+          candidateLinkedin: contact?.linkedin ?? null,
         }),
       }).catch((err) => {
         console.error("[zapier] webhook failed:", err);
