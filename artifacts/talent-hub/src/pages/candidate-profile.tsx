@@ -200,12 +200,12 @@ export default function CandidateProfile() {
         const backHref = fromMyRequests
           ? "/my-requests"
           : isProspective
-            ? `/prospective/${encodeURIComponent(candidate.roleCategory)}`
+            ? "/prospective"
             : "/dashboard";
         const backLabel = fromMyRequests
           ? "Back to My Requests"
           : isProspective
-            ? `Back to ${candidate.roleCategory}`
+            ? "Back to Prospective"
             : "Back to Talent Pool";
         return (
           <Link

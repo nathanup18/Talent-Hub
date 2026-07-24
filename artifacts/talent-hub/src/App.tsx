@@ -14,7 +14,6 @@ import Dashboard from "@/pages/dashboard";
 import CandidateProfile from "@/pages/candidate-profile";
 import MyRequests from "@/pages/my-requests";
 import Prospective from "@/pages/prospective";
-import ProspectiveFunction from "@/pages/prospective-function";
 
 // Admin Pages
 import AdminDashboard from "@/pages/admin/dashboard";
@@ -81,11 +80,6 @@ function Router() {
         <Route path="/prospective">
           <ProtectedRoute>
             <Prospective />
-          </ProtectedRoute>
-        </Route>
-        <Route path="/prospective/:function">
-          <ProtectedRoute>
-            <ProspectiveFunction />
           </ProtectedRoute>
         </Route>
 
