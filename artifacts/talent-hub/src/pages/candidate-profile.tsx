@@ -194,13 +194,29 @@ export default function CandidateProfile() {
 
   return (
     <div className="max-w-4xl mx-auto w-full pb-20">
-      <Link
-        href={fromMyRequests ? "/my-requests" : "/dashboard"}
-        className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4 mr-1" />
-        {fromMyRequests ? "Back to My Requests" : "Back to Talent Pool"}
-      </Link>
+      {(() => {
+        // Prospective candidates return to their function (sector) view; talent
+        // pool returns to the dashboard (or My Requests when arriving from there).
+        const backHref = fromMyRequests
+          ? "/my-requests"
+          : isProspective
+            ? `/prospective/${encodeURIComponent(candidate.roleCategory)}`
+            : "/dashboard";
+        const backLabel = fromMyRequests
+          ? "Back to My Requests"
+          : isProspective
+            ? `Back to ${candidate.roleCategory}`
+            : "Back to Talent Pool";
+        return (
+          <Link
+            href={backHref}
+            className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4 mr-1" />
+            {backLabel}
+          </Link>
+        );
+      })()}
 
       <div className="bg-card border border-card-border rounded-xl shadow-sm overflow-hidden mb-6">
         <div className="p-8 md:p-10 border-b border-border">
