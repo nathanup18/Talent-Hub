@@ -407,9 +407,10 @@ router.post(
       return;
     }
 
-    await db
+    const [interest] = await db
       .insert(introRequestsTable)
-      .values({ founderId, candidateId: id, requestType: "prospective_interest" });
+      .values({ founderId, candidateId: id, requestType: "prospective_interest" })
+      .returning();
 
     res.status(201).json({ success: true, expressedInterest: true });
 
@@ -422,6 +423,13 @@ router.post(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           requestType: "Prospective Interest",
+          // Stable identifiers so the Zap knows exactly which records this touches.
+          introRequestId: interest?.id ?? null,
+          candidateId: candidate.id,
+          candidateInternalId: candidate.internalId,
+          candidateTeId: candidate.teId ?? null,
+          pool: candidate.pool,
+          founderId,
           founderName: founder?.name ?? "",
           founderEmail: founder?.email ?? "",
           founderCompany: founder?.company ?? "",

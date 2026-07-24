@@ -188,6 +188,13 @@ router.post(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           requestType: requestType === "more_info" ? "More Info" : "Intro",
+          // Stable identifiers so the Zap knows exactly which records this touches.
+          introRequestId: introRequest.id,
+          candidateId: candidate.id,
+          candidateInternalId: candidate.internalId,
+          candidateTeId: candidate.teId ?? null,
+          pool: candidate.pool,
+          founderId: founder.id,
           founderName: founder.name,
           founderEmail: founder.email,
           founderCompany: founder.company ?? "",
