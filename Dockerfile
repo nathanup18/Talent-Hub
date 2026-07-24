@@ -6,9 +6,10 @@
 # supplied by the platform.
 FROM node:24-slim AS build
 WORKDIR /app
-# Pin pnpm 9 explicitly — corepack would pull pnpm 11, which fails the install
-# by treating dependency build scripts (esbuild) as a fatal error.
-RUN npm install -g pnpm@9
+# Pin pnpm 10 — the version that generated the lockfile (catalogs + overrides in
+# pnpm-workspace.yaml are pnpm 10+ features). pnpm 9 can't read it; corepack's
+# pnpm 11 wrongly treats approved build scripts as a fatal error.
+RUN npm install -g pnpm@10
 COPY . .
 RUN pnpm install --frozen-lockfile
 # Frontend is served at the domain root; bake that base path into the build.
