@@ -260,12 +260,6 @@ export default function Dashboard() {
                     <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
                     <span>{candidate.location}{candidate.openToRelocation && " (Open to move)"}</span>
                   </div>
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <DollarSign className="w-4 h-4 mr-2 flex-shrink-0" />
-                    <span className="font-mono">
-                      ${(candidate.compRangeMin / 1000).toFixed(0)}k – ${(candidate.compRangeMax / 1000).toFixed(0)}k
-                    </span>
-                  </div>
                 </div>
 
                 <div className="pt-4 border-t border-border mt-auto">

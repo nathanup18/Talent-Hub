@@ -368,14 +368,7 @@ function ProspectiveCard({
         )}
       </div>
 
-      {/* Comp expectation */}
-      {candidate.compExpectation && (
-        <div className="flex items-center gap-1.5 text-muted-foreground text-sm mb-3">
-          <DollarSign className="w-3.5 h-3.5 shrink-0" />
-          <span>{candidate.compExpectation}</span>
-        </div>
-      )}
-      {!candidate.compExpectation && <div className="mb-3" />}
+      <div className="mb-3" />
 
       {/* Blurb — fixed 3-line height so all cards reserve the same space */}
       <div className="flex-1 mb-4">

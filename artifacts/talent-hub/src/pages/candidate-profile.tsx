@@ -290,15 +290,6 @@ export default function CandidateProfile() {
                 <span className="font-sans text-sm font-normal text-muted-foreground">years</span>
               </div>
             </div>
-            <div>
-              <div className="text-sm text-muted-foreground mb-1 flex items-center">
-                <DollarSign className="w-4 h-4 mr-1.5" /> Comp Expectation
-              </div>
-              <div className="font-medium text-lg font-mono">
-                ${(candidate.compRangeMin / 1000).toFixed(0)}k – $
-                {(candidate.compRangeMax / 1000).toFixed(0)}k
-              </div>
-            </div>
           </div>
 
           <div className="mb-10">
