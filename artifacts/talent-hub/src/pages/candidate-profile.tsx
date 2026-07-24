@@ -1,5 +1,5 @@
 import { useRoute, useSearch, Link } from "wouter";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   useGetCandidate,
   useCreateIntroRequest,
@@ -55,6 +55,28 @@ export default function CandidateProfile() {
       queryKey: getGetCandidateQueryKey(id),
     },
   });
+
+  // Anonymized resume profile (served outside the generated candidate schema).
+  const [blindResume, setBlindResume] = useState<string | null>(null);
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${BASE_URL}api/candidates/${id}/blind-resume`, {
+          credentials: "include",
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setBlindResume(data.blindResume ?? null);
+      } catch {
+        /* non-fatal */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   const { data: allRequests = [] } = useListIntroRequests({
     query: { queryKey: getListIntroRequestsQueryKey() },
@@ -309,6 +331,20 @@ export default function CandidateProfile() {
               <div className="flex items-start gap-3 bg-muted/50 p-4 rounded-lg">
                 <GraduationCap className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
                 <p className="text-foreground">{candidate.notableCredentials}</p>
+              </div>
+            </div>
+          )}
+
+          {blindResume && (
+            <div className="mb-10">
+              <h3 className="text-xl font-semibold mb-4 border-b border-border pb-2">
+                Anonymized Résumé
+              </h3>
+              <p className="text-xs text-muted-foreground mb-3">
+                Identifying details (name, contact, employers, dates) removed. Full details shared after an intro.
+              </p>
+              <div className="bg-muted/50 p-4 rounded-lg whitespace-pre-wrap text-sm text-foreground leading-relaxed">
+                {blindResume}
               </div>
             </div>
           )}

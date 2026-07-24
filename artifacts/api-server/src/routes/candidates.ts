@@ -264,4 +264,36 @@ router.get(
   }
 );
 
+// GET /candidates/:id/blind-resume — anonymized resume profile for the listing.
+// Served separately so it doesn't need to go through the generated candidate
+// response schema. Founders only.
+router.get(
+  "/candidates/:id/blind-resume",
+  requireAuth,
+  requireVerified,
+  async (req, res): Promise<void> => {
+    const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const id = parseInt(raw, 10);
+    if (isNaN(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const [candidate] = await db
+      .select({
+        blindResume: candidatesTable.blindResume,
+        notableCredentials: candidatesTable.notableCredentials,
+      })
+      .from(candidatesTable)
+      .where(and(eq(candidatesTable.id, id), eq(candidatesTable.status, "opted_in")));
+    if (!candidate) {
+      res.status(404).json({ error: "Candidate not found" });
+      return;
+    }
+    res.json({
+      blindResume: candidate.blindResume ?? null,
+      notableCredentials: candidate.notableCredentials ?? null,
+    });
+  }
+);
+
 export default router;

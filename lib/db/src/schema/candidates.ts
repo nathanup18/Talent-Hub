@@ -56,6 +56,9 @@ export const candidatesTable = pgTable("candidates", {
   // identity/contact is NOT stored here — it is fetched live from TE when an
   // admin views it or a founder requests an intro.
   teId: text("te_id"),
+  // Anonymized profile derived from the candidate's resume (no name, contact,
+  // employer names, or exact dates). Shown to founders behind the listing.
+  blindResume: text("blind_resume"),
   dateAdded: date("date_added", { mode: "string" }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
