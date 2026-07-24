@@ -4,12 +4,12 @@ import { z } from "zod/v4";
 import {
   db,
   candidatesTable,
-  candidateContactsTable,
   domainsTable,
   introRequestsTable,
   teProspectiveCacheTable,
   usersTable,
 } from "@workspace/db";
+import { fetchTeContact, TeContactError } from "../../lib/te-contact";
 import { requireAdmin } from "../../middlewares/auth";
 import {
   CreateCandidateBody,
@@ -225,17 +225,10 @@ router.delete(
   }
 );
 
-// ── Connected record (private candidate contact) ────────────────────────────
-// The real identity/contact behind an anonymized candidate. Admin-only; used to
-// auto-make an introduction. Never returned by any founder-facing route.
-
-const ContactBody = z.object({
-  fullName: z.string().trim().max(200).nullish(),
-  email: z.string().trim().email().max(320).nullish(),
-  phone: z.string().trim().max(50).nullish(),
-  linkedin: z.string().trim().max(500).nullish(),
-  teId: z.string().trim().max(100).nullish(),
-});
+// ── Connected record (live from Top Echelon) ────────────────────────────────
+// A vetted candidate can be linked to a Top Echelon person (candidates.te_id).
+// The real identity/contact is never stored — it is fetched live from TE when
+// an admin views it or a founder requests an intro. Admin-only routes.
 
 async function loadCandidate(idParam: string) {
   const id = Number(idParam);
@@ -247,123 +240,49 @@ async function loadCandidate(idParam: string) {
   return candidate ?? null;
 }
 
-// GET /admin/candidates/:id/contact
+// PUT /admin/candidates/:id/te-link — set or clear the TE link (stores only the id)
+router.put("/admin/candidates/:id/te-link", requireAdmin, async (req, res): Promise<void> => {
+  const candidate = await loadCandidate(req.params.id);
+  if (!candidate) {
+    res.status(404).json({ error: "Candidate not found" });
+    return;
+  }
+  const parsed = z.object({ teId: z.string().trim().max(100).nullish() }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const teId = parsed.data.teId?.trim() || null;
+  const [updated] = await db
+    .update(candidatesTable)
+    .set({ teId })
+    .where(eq(candidatesTable.id, candidate.id))
+    .returning({ id: candidatesTable.id, teId: candidatesTable.teId });
+  res.json(updated);
+});
+
+// GET /admin/candidates/:id/contact — live TE contact for the linked person
 router.get("/admin/candidates/:id/contact", requireAdmin, async (req, res): Promise<void> => {
   const candidate = await loadCandidate(req.params.id);
   if (!candidate) {
     res.status(404).json({ error: "Candidate not found" });
     return;
   }
-  const [contact] = await db
-    .select()
-    .from(candidateContactsTable)
-    .where(eq(candidateContactsTable.candidateId, candidate.id));
-  res.json(contact ?? null);
-});
-
-// PUT /admin/candidates/:id/contact — manually set/replace the connected record
-router.put("/admin/candidates/:id/contact", requireAdmin, async (req, res): Promise<void> => {
-  const candidate = await loadCandidate(req.params.id);
-  if (!candidate) {
-    res.status(404).json({ error: "Candidate not found" });
+  if (!candidate.teId) {
+    res.json({ teId: null, linked: false, contact: null });
     return;
   }
-  const parsed = ContactBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const d = parsed.data;
-  const values = {
-    candidateId: candidate.id,
-    fullName: d.fullName ?? candidate.realName,
-    email: d.email ?? null,
-    phone: d.phone ?? null,
-    linkedin: d.linkedin ?? null,
-    teId: d.teId ?? null,
-    source: "manual" as const,
-  };
-  const [saved] = await db
-    .insert(candidateContactsTable)
-    .values(values)
-    .onConflictDoUpdate({
-      target: candidateContactsTable.candidateId,
-      set: {
-        fullName: values.fullName,
-        email: values.email,
-        phone: values.phone,
-        linkedin: values.linkedin,
-        teId: values.teId,
-        source: "manual",
-      },
-    })
-    .returning();
-  res.json(saved);
-});
-
-// POST /admin/candidates/:id/link-te — pull the connected record from Top Echelon
-router.post("/admin/candidates/:id/link-te", requireAdmin, async (req, res): Promise<void> => {
-  const candidate = await loadCandidate(req.params.id);
-  if (!candidate) {
-    res.status(404).json({ error: "Candidate not found" });
-    return;
-  }
-  const teId = z.string().trim().min(1).safeParse(req.body?.teId);
-  if (!teId.success) {
-    res.status(400).json({ error: "teId is required" });
-    return;
-  }
-
-  const syncUrl = process.env.TE_SYNC_URL;
-  const syncSecret = process.env.TE_SYNC_SECRET;
-  if (!syncUrl || !syncSecret) {
-    res.status(503).json({ error: "TE sync is not configured (TE_SYNC_URL / TE_SYNC_SECRET missing)" });
-    return;
-  }
-
   try {
-    const teRes = await fetch(
-      `${syncUrl.replace(/\/+$/, "")}/person/${encodeURIComponent(teId.data)}/contact`,
-      { headers: { Authorization: `Bearer ${syncSecret}` }, signal: AbortSignal.timeout(30_000) }
-    );
-    if (!teRes.ok) {
-      const body = await teRes.text();
-      res.status(502).json({ error: `TE lookup failed (HTTP ${teRes.status}): ${body.slice(0, 200)}` });
-      return;
-    }
-    const c = (await teRes.json()) as {
-      full_name: string | null;
-      email: string | null;
-      phone: string | null;
-      linkedin: string | null;
-    };
-
-    const [saved] = await db
-      .insert(candidateContactsTable)
-      .values({
-        candidateId: candidate.id,
-        teId: teId.data,
-        fullName: c.full_name ?? candidate.realName,
-        email: c.email ?? null,
-        phone: c.phone ?? null,
-        linkedin: c.linkedin ?? null,
-        source: "top_echelon",
-      })
-      .onConflictDoUpdate({
-        target: candidateContactsTable.candidateId,
-        set: {
-          teId: teId.data,
-          fullName: c.full_name ?? candidate.realName,
-          email: c.email ?? null,
-          phone: c.phone ?? null,
-          linkedin: c.linkedin ?? null,
-          source: "top_echelon",
-        },
-      })
-      .returning();
-    res.json(saved);
+    const contact = await fetchTeContact(candidate.teId);
+    res.json({ teId: candidate.teId, linked: true, contact });
   } catch (err) {
-    res.status(502).json({ error: err instanceof Error ? err.message : "TE lookup failed" });
+    const status = err instanceof TeContactError ? err.status ?? 502 : 502;
+    res.status(status).json({
+      teId: candidate.teId,
+      linked: true,
+      contact: null,
+      error: err instanceof Error ? err.message : "TE lookup failed",
+    });
   }
 });
 

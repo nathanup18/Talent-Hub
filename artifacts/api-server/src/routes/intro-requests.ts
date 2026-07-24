@@ -5,9 +5,9 @@ import {
   db,
   introRequestsTable,
   candidatesTable,
-  candidateContactsTable,
   usersTable,
 } from "@workspace/db";
+import { fetchTeContact } from "../lib/te-contact";
 import { requireAuth, requireAdmin, requireVerified } from "../middlewares/auth";
 import {
   CreateIntroRequestBody,
@@ -161,23 +161,20 @@ router.post(
       }))
     );
 
-    // For a real intro request, pull the private connected record so the Zap
-    // can auto-make the introduction. `more_info` requests never get contact.
+    // For a real intro request, fetch the candidate's contact live from Top
+    // Echelon (via candidate.teId) so the Zap can auto-make the introduction.
+    // Nothing is stored. `more_info` requests never get contact.
     let contact:
       | { fullName: string | null; email: string | null; phone: string | null; linkedin: string | null }
       | null = null;
-    if (requestType === "intro") {
-      const [row] = await db
-        .select()
-        .from(candidateContactsTable)
-        .where(eq(candidateContactsTable.candidateId, candidate.id));
-      if (row) {
-        contact = {
-          fullName: row.fullName,
-          email: row.email,
-          phone: row.phone,
-          linkedin: row.linkedin,
-        };
+    if (requestType === "intro" && candidate.teId) {
+      try {
+        const c = await fetchTeContact(candidate.teId);
+        contact = { fullName: c.fullName, email: c.email, phone: c.phone, linkedin: c.linkedin };
+      } catch (err) {
+        // Degrade gracefully: the intro still logs; the Zap just won't have
+        // contact, so introReady stays false and an admin can follow up.
+        console.error("[te-contact] intro lookup failed:", err);
       }
     }
     // Auto-intro is ready only when we actually have an email to introduce to.

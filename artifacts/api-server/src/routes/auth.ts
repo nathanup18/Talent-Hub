@@ -144,11 +144,28 @@ router.post("/auth/login", authLimiter, async (req, res): Promise<void> => {
     return;
   }
 
-  req.session.userId = user.id;
-  req.session.userRole = user.role;
-  req.session.emailVerified = user.emailVerified;
+  // Self-heal the admin role: nathan@ is always an admin per the business rule,
+  // even if the account was created before that rule existed. Promote on login
+  // so admin access never depends on signup timing.
+  let effectiveUser = user;
+  if (
+    user.email.toLowerCase() === "nathan@activeimpactinvestments.com" &&
+    user.role !== "admin"
+  ) {
+    const [promoted] = await db
+      .update(usersTable)
+      .set({ role: "admin" })
+      .where(eq(usersTable.id, user.id))
+      .returning();
+    if (promoted) effectiveUser = promoted;
+    req.log.info({ userId: user.id }, "Promoted nathan@ to admin on login");
+  }
 
-  res.json({ user: formatUser(user) });
+  req.session.userId = effectiveUser.id;
+  req.session.userRole = effectiveUser.role;
+  req.session.emailVerified = effectiveUser.emailVerified;
+
+  res.json({ user: formatUser(effectiveUser) });
 });
 
 // POST /auth/logout
@@ -181,11 +198,25 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     return;
   }
 
-  // Refresh session
-  req.session.emailVerified = user.emailVerified;
-  req.session.userRole = user.role;
+  // Self-heal the admin role so nathan@ regains admin without re-logging in.
+  let effectiveUser = user;
+  if (
+    user.email.toLowerCase() === "nathan@activeimpactinvestments.com" &&
+    user.role !== "admin"
+  ) {
+    const [promoted] = await db
+      .update(usersTable)
+      .set({ role: "admin" })
+      .where(eq(usersTable.id, user.id))
+      .returning();
+    if (promoted) effectiveUser = promoted;
+  }
 
-  res.json({ user: formatUser(user) });
+  // Refresh session
+  req.session.emailVerified = effectiveUser.emailVerified;
+  req.session.userRole = effectiveUser.role;
+
+  res.json({ user: formatUser(effectiveUser) });
 });
 
 // POST /auth/verify-email

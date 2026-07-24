@@ -161,45 +161,56 @@ export default function AdminCandidates() {
   );
 }
 
-interface CandidateContact {
+interface TeContact {
   fullName: string | null;
   email: string | null;
   phone: string | null;
   linkedin: string | null;
+  currentTitle: string | null;
+}
+interface ContactResponse {
   teId: string | null;
-  source: string;
+  linked: boolean;
+  contact: TeContact | null;
+  error?: string;
 }
 
-// Private "connected record": the real identity behind the anonymized candidate,
-// used to auto-make an introduction. Admin-only; never shown to founders.
+// Connected record: links the anonymized candidate to a Top Echelon person.
+// The real identity/contact is read LIVE from TE (never stored) and used to
+// auto-make an introduction. Admin-only; never shown to founders.
 function ConnectedRecord({ candidateId }: { candidateId: number }) {
   const { toast } = useToast();
-  const [contact, setContact] = useState<CandidateContact | null>(null);
+  const [data, setData] = useState<ContactResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [linking, setLinking] = useState(false);
-  const [form, setForm] = useState({ fullName: "", email: "", phone: "", linkedin: "", teId: "" });
+  const [teId, setTeId] = useState("");
+
+  const fetchContact = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${BASE_URL}api/admin/candidates/${candidateId}/contact`, {
+        credentials: "include",
+      });
+      const body: ContactResponse = await res.json();
+      setData(body);
+      setTeId(body.teId ?? "");
+      return body;
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setLoading(true);
       try {
         const res = await fetch(`${BASE_URL}api/admin/candidates/${candidateId}/contact`, {
           credentials: "include",
         });
-        const data = res.ok ? await res.json() : null;
+        const body: ContactResponse = await res.json();
         if (cancelled) return;
-        setContact(data);
-        if (data) {
-          setForm({
-            fullName: data.fullName ?? "",
-            email: data.email ?? "",
-            phone: data.phone ?? "",
-            linkedin: data.linkedin ?? "",
-            teId: data.teId ?? "",
-          });
-        }
+        setData(body);
+        setTeId(body.teId ?? "");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -209,84 +220,57 @@ function ConnectedRecord({ candidateId }: { candidateId: number }) {
     };
   }, [candidateId]);
 
-  const save = async () => {
+  // Save the TE link, then immediately read the live contact back.
+  const saveLink = async () => {
     setSaving(true);
     try {
-      const res = await fetch(`${BASE_URL}api/admin/candidates/${candidateId}/contact`, {
+      const res = await fetch(`${BASE_URL}api/admin/candidates/${candidateId}/te-link`, {
         method: "PUT",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fullName: form.fullName || null,
-          email: form.email || null,
-          phone: form.phone || null,
-          linkedin: form.linkedin || null,
-          teId: form.teId || null,
-        }),
+        body: JSON.stringify({ teId: teId.trim() || null }),
       });
-      if (res.ok) {
-        setContact(await res.json());
-        toast({ title: "Connected record saved" });
-      } else {
+      if (!res.ok) {
         const b = await res.json().catch(() => ({}));
-        toast({ title: "Could not save", description: b.error ?? `HTTP ${res.status}`, variant: "destructive" });
+        toast({ title: "Could not save link", description: b.error ?? `HTTP ${res.status}`, variant: "destructive" });
+        return;
+      }
+      const body = await fetchContact();
+      if (!teId.trim()) {
+        toast({ title: "Link cleared" });
+      } else if (body?.error) {
+        toast({ title: "Linked, but TE lookup failed", description: body.error, variant: "destructive" });
+      } else if (body?.contact?.email) {
+        toast({ title: "Linked to Top Echelon", description: body.contact.email });
+      } else {
+        toast({ title: "Linked", description: "No email on file in TE for this person." });
       }
     } finally {
       setSaving(false);
     }
   };
 
-  const linkTe = async () => {
-    if (!form.teId.trim()) {
-      toast({ title: "Enter a Top Echelon ID first", variant: "destructive" });
-      return;
-    }
-    setLinking(true);
-    try {
-      const res = await fetch(`${BASE_URL}api/admin/candidates/${candidateId}/link-te`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teId: form.teId.trim() }),
-      });
-      const b = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setContact(b);
-        setForm({
-          fullName: b.fullName ?? "",
-          email: b.email ?? "",
-          phone: b.phone ?? "",
-          linkedin: b.linkedin ?? "",
-          teId: b.teId ?? "",
-        });
-        toast({ title: "Pulled from Top Echelon", description: b.email ?? "No email on file in TE." });
-      } else {
-        toast({ title: "TE lookup failed", description: b.error ?? `HTTP ${res.status}`, variant: "destructive" });
-      }
-    } finally {
-      setLinking(false);
-    }
-  };
-
+  const contact = data?.contact ?? null;
   const introReady = !!contact?.email;
 
   return (
     <div className="md:col-span-2 border-t border-border pt-5 mt-1">
       <div className="flex items-center gap-2 mb-1">
         <h3 className="text-sm font-semibold">Connected record</h3>
-        {!loading &&
+        {!loading && data?.linked &&
           (introReady ? (
             <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
               <CheckCircle2 className="w-3 h-3" /> Intro-ready
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
-              No email — intro can't auto-send
+              {data?.error ? "TE lookup failed" : "No email in TE — intro can't auto-send"}
             </span>
           ))}
       </div>
       <p className="text-xs text-muted-foreground mb-4">
-        Private. Never shown to founders. Used to auto-make the introduction when a founder requests an intro.
+        Link this candidate to their Top Echelon record. Contact details are read live from TE (never stored) and
+        used to auto-make the introduction when a founder requests an intro. Never shown to founders.
       </p>
 
       {loading ? (
@@ -294,60 +278,39 @@ function ConnectedRecord({ candidateId }: { candidateId: number }) {
           <Loader2 className="w-4 h-4 animate-spin" /> Loading…
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-4">
           <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Real name</label>
-            <Input
-              value={form.fullName}
-              onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
-              placeholder="Defaults to the candidate's real name"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Email (for the intro)</label>
-            <Input
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-              placeholder="candidate@email.com"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Phone</label>
-            <Input
-              value={form.phone}
-              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-              placeholder="Optional"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">LinkedIn</label>
-            <Input
-              value={form.linkedin}
-              onChange={(e) => setForm((f) => ({ ...f, linkedin: e.target.value }))}
-              placeholder="Optional"
-            />
-          </div>
-          <div className="space-y-2 md:col-span-2">
-            <label className="text-xs font-medium text-muted-foreground">Top Echelon ID</label>
+            <label className="text-xs font-medium text-muted-foreground">Top Echelon person ID</label>
             <div className="flex gap-2">
               <Input
-                value={form.teId}
-                onChange={(e) => setForm((f) => ({ ...f, teId: e.target.value }))}
-                placeholder="TE person id — pull name/email/phone automatically"
+                value={teId}
+                onChange={(e) => setTeId(e.target.value)}
+                placeholder="e.g. f2f0c20d-87e4-49a2-add7-47d12030defc"
               />
-              <Button type="button" variant="outline" onClick={linkTe} disabled={linking} className="shrink-0 gap-1.5">
-                {linking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
-                Pull from TE
+              <Button type="button" onClick={saveLink} disabled={saving} className="shrink-0 gap-1.5">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+                {teId.trim() ? "Link & preview" : "Clear link"}
               </Button>
             </div>
           </div>
-          <div className="md:col-span-2 flex justify-end">
-            <Button type="button" onClick={save} disabled={saving} className="gap-1.5">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
-              Save connected record
-            </Button>
-          </div>
+
+          {data?.linked && data.error && (
+            <p className="text-xs text-red-600">Couldn't reach Top Echelon: {data.error}</p>
+          )}
+
+          {contact && (
+            <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm space-y-1.5">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                <Mail className="w-3.5 h-3.5" /> Live from Top Echelon
+              </div>
+              <div><span className="text-muted-foreground">Name:</span> {contact.fullName ?? "—"}</div>
+              <div><span className="text-muted-foreground">Email:</span> {contact.email ?? "—"}</div>
+              <div><span className="text-muted-foreground">Phone:</span> {contact.phone ?? "—"}</div>
+              {contact.currentTitle && (
+                <div><span className="text-muted-foreground">Title:</span> {contact.currentTitle}</div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

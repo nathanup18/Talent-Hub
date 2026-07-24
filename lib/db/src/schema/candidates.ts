@@ -52,6 +52,10 @@ export const candidatesTable = pgTable("candidates", {
   summaryBlurb: text("summary_blurb").notNull(),
   notableCredentials: text("notable_credentials").notNull(),
   status: candidateStatusEnum("status").notNull().default("opted_in"),
+  // Optional link to the Top Echelon person this candidate came from. The real
+  // identity/contact is NOT stored here — it is fetched live from TE when an
+  // admin views it or a founder requests an intro.
+  teId: text("te_id"),
   dateAdded: date("date_added", { mode: "string" }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
