@@ -19,6 +19,19 @@ import { z } from "zod/v4";
 
 const router: IRouter = Router();
 
+// Emails that always get the admin role — at signup, and self-healed on login
+// and /auth/me so admin access never depends on when the account was created.
+// Pre-provisioning an email here makes that person an admin the moment they
+// sign up, even before their account exists.
+const ADMIN_EMAILS = new Set<string>([
+  "nathan@activeimpactinvestments.com",
+  "cayleyd@activeimpactinvestments.com",
+]);
+
+function isAdminEmail(email: string): boolean {
+  return ADMIN_EMAILS.has(email.toLowerCase());
+}
+
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 20,
@@ -92,8 +105,8 @@ router.post("/auth/signup", authLimiter, async (req, res): Promise<void> => {
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  // Only nathan@ gets admin; every other signup (including other @activeimpactinvestments.com) is a founder
-  const role = email.toLowerCase() === "nathan@activeimpactinvestments.com" ? "admin" : "founder";
+  // Admins are pre-provisioned in ADMIN_EMAILS; everyone else signs up as a founder.
+  const role = isAdminEmail(email) ? "admin" : "founder";
 
   const [user] = await db
     .insert(usersTable)
@@ -144,21 +157,18 @@ router.post("/auth/login", authLimiter, async (req, res): Promise<void> => {
     return;
   }
 
-  // Self-heal the admin role: nathan@ is always an admin per the business rule,
-  // even if the account was created before that rule existed. Promote on login
-  // so admin access never depends on signup timing.
+  // Self-heal the admin role for pre-provisioned admins, even if the account
+  // was created before the rule existed. Promote on login so admin access
+  // never depends on signup timing.
   let effectiveUser = user;
-  if (
-    user.email.toLowerCase() === "nathan@activeimpactinvestments.com" &&
-    user.role !== "admin"
-  ) {
+  if (isAdminEmail(user.email) && user.role !== "admin") {
     const [promoted] = await db
       .update(usersTable)
       .set({ role: "admin" })
       .where(eq(usersTable.id, user.id))
       .returning();
     if (promoted) effectiveUser = promoted;
-    req.log.info({ userId: user.id }, "Promoted nathan@ to admin on login");
+    req.log.info({ userId: user.id }, "Promoted pre-provisioned admin on login");
   }
 
   req.session.userId = effectiveUser.id;
@@ -198,12 +208,9 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     return;
   }
 
-  // Self-heal the admin role so nathan@ regains admin without re-logging in.
+  // Self-heal the admin role for pre-provisioned admins without re-logging in.
   let effectiveUser = user;
-  if (
-    user.email.toLowerCase() === "nathan@activeimpactinvestments.com" &&
-    user.role !== "admin"
-  ) {
+  if (isAdminEmail(user.email) && user.role !== "admin") {
     const [promoted] = await db
       .update(usersTable)
       .set({ role: "admin" })

@@ -118,8 +118,25 @@ router.get(
       conditions.push(lte(candidatesTable.compRangeMin, q.compMax));
     }
 
+    // Explicit column list: never selects realName/internalId/teId, and stays
+    // resilient to schema changes (a new column can't blank the founder pool).
     let candidates = await db
-      .select()
+      .select({
+        id: candidatesTable.id,
+        anonymizedHeadline: candidatesTable.anonymizedHeadline,
+        roleCategory: candidatesTable.roleCategory,
+        seniority: candidatesTable.seniority,
+        yearsExperience: candidatesTable.yearsExperience,
+        location: candidatesTable.location,
+        openToRelocation: candidatesTable.openToRelocation,
+        compRangeMin: candidatesTable.compRangeMin,
+        compRangeMax: candidatesTable.compRangeMax,
+        topSkills: candidatesTable.topSkills,
+        summaryBlurb: candidatesTable.summaryBlurb,
+        notableCredentials: candidatesTable.notableCredentials,
+        status: candidatesTable.status,
+        dateAdded: candidatesTable.dateAdded,
+      })
       .from(candidatesTable)
       .where(and(...conditions));
 
@@ -182,8 +199,25 @@ router.get(
       return;
     }
 
+    // Explicit column list: never selects realName/internalId/teId, and stays
+    // resilient to schema changes.
     const [candidate] = await db
-      .select()
+      .select({
+        id: candidatesTable.id,
+        anonymizedHeadline: candidatesTable.anonymizedHeadline,
+        roleCategory: candidatesTable.roleCategory,
+        seniority: candidatesTable.seniority,
+        yearsExperience: candidatesTable.yearsExperience,
+        location: candidatesTable.location,
+        openToRelocation: candidatesTable.openToRelocation,
+        compRangeMin: candidatesTable.compRangeMin,
+        compRangeMax: candidatesTable.compRangeMax,
+        topSkills: candidatesTable.topSkills,
+        summaryBlurb: candidatesTable.summaryBlurb,
+        notableCredentials: candidatesTable.notableCredentials,
+        status: candidatesTable.status,
+        dateAdded: candidatesTable.dateAdded,
+      })
       .from(candidatesTable)
       .where(
         and(eq(candidatesTable.id, id), eq(candidatesTable.status, "opted_in"))
