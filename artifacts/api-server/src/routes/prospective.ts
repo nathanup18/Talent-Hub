@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, notInArray } from "drizzle-orm";
 import { db, teProspectiveCacheTable, teInterestsTable, usersTable } from "@workspace/db";
 import { requireAuth, requireVerified } from "../middlewares/auth";
 import { z } from "zod";
+import { mapBridgeCandidate, type BridgeCandidate } from "../lib/te-sync";
 
 const router: IRouter = Router();
 
@@ -20,11 +21,14 @@ router.get(
     const allCandidates = await db.select().from(teProspectiveCacheTable);
 
     // Deduplicate by roleCategory — one listing per role.
-    // For TE-sourced entries, keep the most recently synced one per category.
+    // For TE-sourced entries, keep the most recently synced one per category
+    // and count how many others in that category are hidden behind it.
     // Manual entries (MANUAL- prefix) are always kept individually.
     const seen = new Map<string, typeof allCandidates[0]>();
+    const categoryCount = new Map<string, number>();
     for (const c of allCandidates) {
       if (c.teId.startsWith("MANUAL-")) continue; // handled separately
+      categoryCount.set(c.roleCategory, (categoryCount.get(c.roleCategory) ?? 0) + 1);
       const existing = seen.get(c.roleCategory);
       if (!existing || c.lastSyncedAt > existing.lastSyncedAt) {
         seen.set(c.roleCategory, c);
@@ -32,6 +36,10 @@ router.get(
     }
     const manuals = allCandidates.filter((c) => c.teId.startsWith("MANUAL-"));
     const candidates = [...seen.values(), ...manuals];
+
+    // How many additional candidates sit behind each shown listing.
+    const moreInCategoryFor = (c: typeof allCandidates[0]): number =>
+      c.teId.startsWith("MANUAL-") ? 0 : Math.max(0, (categoryCount.get(c.roleCategory) ?? 1) - 1);
 
     const interests = await db
       .select({ teId: teInterestsTable.teId })
@@ -54,6 +62,7 @@ router.get(
         hasExpressedInterest: interestedIds.has(c.teId),
         lastSyncedAt: c.lastSyncedAt,
         screeningDate: c.screeningDate,
+        moreInCategory: moreInCategoryFor(c),
       }))
     );
   }
@@ -175,7 +184,10 @@ router.get(
   }
 );
 
-// POST /admin/te-sync — trigger a TE sync (runs the sync script)
+// POST /admin/te-sync — pull "1st Screen" pipeline candidates from Top Echelon
+// via the te-recruit-mcp Worker bridge (GET /sync/prospective) and refresh the
+// prospective cache. Manual entries and entries with expressed interest are
+// never pruned.
 router.post(
   "/admin/te-sync",
   requireAuth,
@@ -185,27 +197,75 @@ router.post(
       return;
     }
 
-    const { exec } = await import("child_process");
-    const { promisify } = await import("util");
-    const execAsync = promisify(exec);
+    const syncUrl = process.env.TE_SYNC_URL;
+    const syncSecret = process.env.TE_SYNC_SECRET;
+    if (!syncUrl || !syncSecret) {
+      res.status(503).json({
+        success: false,
+        error: "TE sync is not configured (TE_SYNC_URL / TE_SYNC_SECRET missing)",
+      });
+      return;
+    }
 
     try {
-      const { stdout, stderr } = await execAsync(
-        "pnpm --filter @workspace/api-server run sync:te",
-        { timeout: 120_000, cwd: process.cwd() }
-      );
+      const bridgeRes = await fetch(`${syncUrl.replace(/\/+$/, "")}/sync/prospective`, {
+        headers: { Authorization: `Bearer ${syncSecret}` },
+        signal: AbortSignal.timeout(60_000),
+      });
+      if (!bridgeRes.ok) {
+        const body = await bridgeRes.text();
+        res.status(502).json({
+          success: false,
+          error: `TE bridge returned HTTP ${bridgeRes.status}: ${body.slice(0, 300)}`,
+        });
+        return;
+      }
+
+      const payload = (await bridgeRes.json()) as {
+        stage: string;
+        candidates: BridgeCandidate[];
+      };
+      const rows = (payload.candidates ?? []).map(mapBridgeCandidate);
+
+      const now = new Date();
+      for (const row of rows) {
+        await db
+          .insert(teProspectiveCacheTable)
+          .values({ ...row, lastSyncedAt: now })
+          .onConflictDoUpdate({
+            target: teProspectiveCacheTable.teId,
+            set: { ...row, lastSyncedAt: now },
+          });
+      }
+
+      // Prune TE-sourced rows that left the screening stage, unless a founder
+      // has expressed interest (that signal should stay visible to admins).
+      const keepIds = rows.map((r) => r.teId);
+      const pruned = await db
+        .delete(teProspectiveCacheTable)
+        .where(
+          and(
+            sql`${teProspectiveCacheTable.teId} NOT LIKE 'MANUAL-%'`,
+            keepIds.length
+              ? notInArray(teProspectiveCacheTable.teId, keepIds)
+              : undefined,
+            notInArray(
+              teProspectiveCacheTable.teId,
+              db.select({ teId: teInterestsTable.teId }).from(teInterestsTable)
+            )
+          )
+        )
+        .returning({ teId: teProspectiveCacheTable.teId });
+
       res.json({
         success: true,
-        output: stdout.slice(-2000),
-        errors: stderr.slice(-500) || undefined,
+        synced: rows.length,
+        pruned: pruned.length,
+        stage: payload.stage,
       });
     } catch (err: unknown) {
-      const e = err as { message?: string; stdout?: string; stderr?: string };
-      res.status(500).json({
-        success: false,
-        error: e.message,
-        output: e.stdout?.slice(-1000),
-      });
+      const e = err as Error;
+      res.status(502).json({ success: false, error: e.message });
     }
   }
 );

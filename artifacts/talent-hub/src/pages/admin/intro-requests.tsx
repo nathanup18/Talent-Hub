@@ -68,9 +68,33 @@ function typeBadge(requestType: string) {
   );
 }
 
+// Next-step actions available from each pipeline status. The primary action
+// advances the request; the secondary either closes it or reopens a closed one.
+const NEXT_ACTIONS: Record<
+  string,
+  { primary?: { status: string; label: string }; secondary?: { status: string; label: string } }
+> = {
+  requested: {
+    primary: { status: "offered", label: "Offer Intro" },
+    secondary: { status: "closed", label: "Decline" },
+  },
+  offered: {
+    primary: { status: "intro_made", label: "Mark Accepted" },
+    secondary: { status: "closed", label: "Decline" },
+  },
+  intro_made: {
+    primary: { status: "placed", label: "Mark Placed" },
+    secondary: { status: "closed", label: "Close" },
+  },
+  placed: {},
+  closed: {
+    secondary: { status: "requested", label: "Reopen" },
+  },
+};
+
 function RequestRow({ req, onAction, isActioning }: { req: Request; onAction: (id: number, status: string) => void; isActioning: boolean }) {
-  const isPending = req.status === "requested";
-  const isResolved = ["intro_made", "closed", "placed"].includes(req.status);
+  const isResolved = ["placed", "closed"].includes(req.status);
+  const actions = NEXT_ACTIONS[req.status] ?? {};
 
   return (
     <tr className={`transition-colors hover:bg-muted/30 ${isResolved ? "opacity-70" : ""}`}>
@@ -109,39 +133,39 @@ function RequestRow({ req, onAction, isActioning }: { req: Request; onAction: (i
 
       {/* Actions */}
       <td className="px-5 py-4">
-        {isPending ? (
+        {actions.primary || actions.secondary ? (
           <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              disabled={isActioning}
-              className="h-8 gap-1.5 bg-green-600 hover:bg-green-700 text-white border-0"
-              onClick={() => onAction(req.id, "intro_made")}
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              Accept
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={isActioning}
-              className="h-8 gap-1.5 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
-              onClick={() => onAction(req.id, "closed")}
-            >
-              <XCircle className="w-3.5 h-3.5" />
-              Decline
-            </Button>
-          </div>
-        ) : req.status === "offered" ? (
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              disabled={isActioning}
-              className="h-8 gap-1.5 bg-green-600 hover:bg-green-700 text-white border-0"
-              onClick={() => onAction(req.id, "intro_made")}
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              Mark Accepted
-            </Button>
+            {actions.primary && (
+              <Button
+                size="sm"
+                disabled={isActioning}
+                className="h-8 gap-1.5 bg-green-600 hover:bg-green-700 text-white border-0"
+                onClick={() => onAction(req.id, actions.primary!.status)}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {actions.primary.label}
+              </Button>
+            )}
+            {actions.secondary && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isActioning}
+                className={`h-8 gap-1.5 ${
+                  actions.secondary.status === "closed"
+                    ? "text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                    : "text-muted-foreground"
+                }`}
+                onClick={() => onAction(req.id, actions.secondary!.status)}
+              >
+                {actions.secondary.status === "closed" ? (
+                  <XCircle className="w-3.5 h-3.5" />
+                ) : (
+                  <Clock className="w-3.5 h-3.5" />
+                )}
+                {actions.secondary.label}
+              </Button>
+            )}
           </div>
         ) : (
           <span className="text-xs text-muted-foreground">—</span>
@@ -151,9 +175,18 @@ function RequestRow({ req, onAction, isActioning }: { req: Request; onAction: (i
   );
 }
 
+const STATUS_FILTERS: { key: string; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "requested", label: "Pending" },
+  { key: "offered", label: "Offered" },
+  { key: "intro_made", label: "Accepted" },
+  { key: "placed", label: "Placed" },
+  { key: "closed", label: "Declined" },
+];
+
 export default function AdminIntroRequests() {
   const [search, setSearch] = useState("");
-  const [tab, setTab] = useState<"pending" | "all">("pending");
+  const [statusFilter, setStatusFilter] = useState<string>("requested");
   const queryClient = useQueryClient();
 
   const { data: requests, isLoading } = useListAdminIntroRequests({
@@ -179,11 +212,15 @@ export default function AdminIntroRequests() {
       r.founderEmail.toLowerCase().includes(search.toLowerCase()) ||
       (r.founderCompany?.toLowerCase().includes(search.toLowerCase()) ?? false);
 
-    const matchesTab = tab === "all" || r.status === "requested";
-    return matchesSearch && matchesTab;
+    const matchesStatus = statusFilter === "all" || r.status === statusFilter;
+    return matchesSearch && matchesStatus;
   });
 
-  const pendingCount = (requests ?? []).filter((r) => r.status === "requested").length;
+  const countFor = (key: string) =>
+    key === "all"
+      ? (requests ?? []).length
+      : (requests ?? []).filter((r) => r.status === key).length;
+  const pendingCount = countFor("requested");
 
   return (
     <div className="max-w-7xl mx-auto w-full">
@@ -207,36 +244,36 @@ export default function AdminIntroRequests() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-4 border-b border-border">
-        <button
-          onClick={() => setTab("pending")}
-          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
-            tab === "pending"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          Pending
-          {pendingCount > 0 && (
-            <span className="ml-2 bg-primary text-primary-foreground text-xs font-bold rounded-full px-1.5 py-0.5">
-              {pendingCount}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setTab("all")}
-          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
-            tab === "all"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          All Requests
-          {requests && (
-            <span className="ml-2 text-xs text-muted-foreground font-normal">{requests.length}</span>
-          )}
-        </button>
+      {/* Status filter */}
+      <div className="flex flex-wrap gap-1 mb-4 border-b border-border">
+        {STATUS_FILTERS.map((f) => {
+          const count = countFor(f.key);
+          const active = statusFilter === f.key;
+          return (
+            <button
+              key={f.key}
+              onClick={() => setStatusFilter(f.key)}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+                active
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {f.label}
+              {count > 0 && (
+                <span
+                  className={`ml-2 text-xs rounded-full px-1.5 py-0.5 ${
+                    f.key === "requested" && count > 0
+                      ? "bg-primary text-primary-foreground font-bold"
+                      : "text-muted-foreground font-normal"
+                  }`}
+                >
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Table */}
@@ -249,11 +286,11 @@ export default function AdminIntroRequests() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="p-16 text-center text-muted-foreground">
-            {tab === "pending" ? (
+            {statusFilter === "requested" && !search ? (
               <>
                 <CheckCircle2 className="w-12 h-12 mx-auto mb-3 opacity-20" />
                 <p className="font-medium">No pending requests</p>
-                <p className="text-sm mt-1">All caught up! Switch to "All Requests" to see history.</p>
+                <p className="text-sm mt-1">All caught up! Switch to "All" to see history.</p>
               </>
             ) : (
               <p>No requests found{search ? ` matching "${search}"` : ""}.</p>

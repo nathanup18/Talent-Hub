@@ -27,6 +27,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 import { BASE_URL } from "@/lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -45,6 +46,7 @@ interface ProspectiveCandidate {
   hasExpressedInterest: boolean;
   lastSyncedAt: string;
   screeningDate: string | null;
+  moreInCategory?: number;
 }
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
@@ -306,6 +308,16 @@ function ProspectiveCard({
             <span className="text-xs text-muted-foreground">
               {seniorityLabel(candidate.seniority)}
             </span>
+            {(candidate.moreInCategory ?? 0) > 0 && (
+              <span
+                className="text-xs text-muted-foreground"
+                title={`${candidate.moreInCategory} more ${candidate.roleCategory} candidate${
+                  candidate.moreInCategory === 1 ? "" : "s"
+                } at this stage — ask the Active Impact team`}
+              >
+                +{candidate.moreInCategory} more in {candidate.roleCategory}
+              </span>
+            )}
           </div>
         </div>
         <span className="text-xs font-medium text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full shrink-0">
@@ -474,6 +486,7 @@ export default function Prospective() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCandidate, setSelectedCandidate] = useState<ProspectiveCandidate | null>(null);
@@ -492,11 +505,13 @@ export default function Prospective() {
 
   const expressedCount = candidates.filter((c) => c.hasExpressedInterest).length;
 
-  // Tally per-category counts for the overview card
+  // Tally per-category totals for the filter pills. Each shown listing may hide
+  // additional same-category candidates (moreInCategory), so the true total is
+  // the shown rows plus those hidden behind them.
   const categoryBreakdown = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const c of candidates) {
-      counts[c.roleCategory] = (counts[c.roleCategory] ?? 0) + 1;
+      counts[c.roleCategory] = (counts[c.roleCategory] ?? 0) + 1 + (c.moreInCategory ?? 0);
     }
     return Object.entries(counts)
       .sort((a, b) => b[1] - a[1])
@@ -510,7 +525,28 @@ export default function Prospective() {
         method: "POST",
         credentials: "include",
       });
-      if (res.ok) qc.invalidateQueries({ queryKey: ["prospective"] });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) {
+        qc.invalidateQueries({ queryKey: ["prospective"] });
+        toast({
+          title: "Synced from Top Echelon",
+          description: `${body.synced ?? 0} candidate${body.synced === 1 ? "" : "s"} at the screening stage${
+            body.pruned ? `, ${body.pruned} removed` : ""
+          }.`,
+        });
+      } else {
+        toast({
+          title: "Sync failed",
+          description: body.error ?? `Server returned ${res.status}.`,
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "Sync failed",
+        description: err instanceof Error ? err.message : "Network error.",
+        variant: "destructive",
+      });
     } finally {
       setSyncing(false);
     }
