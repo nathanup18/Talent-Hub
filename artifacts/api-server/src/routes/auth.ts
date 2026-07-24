@@ -19,17 +19,16 @@ import { z } from "zod/v4";
 
 const router: IRouter = Router();
 
-// Emails that always get the admin role — at signup, and self-healed on login
-// and /auth/me so admin access never depends on when the account was created.
-// Pre-provisioning an email here makes that person an admin the moment they
-// sign up, even before their account exists.
-const ADMIN_EMAILS = new Set<string>([
-  "nathan@activeimpactinvestments.com",
-  "cayleyd@activeimpactinvestments.com",
-]);
+// Admins are recognized at signup and self-healed on login and /auth/me, so
+// admin access never depends on when the account was created.
+// - Anyone on the Active Impact domain is an admin.
+// - ADMIN_EMAILS covers any additional admins outside that domain.
+const ADMIN_DOMAIN = "activeimpactinvestments.com";
+const ADMIN_EMAILS = new Set<string>([]);
 
 function isAdminEmail(email: string): boolean {
-  return ADMIN_EMAILS.has(email.toLowerCase());
+  const lower = email.toLowerCase();
+  return lower.split("@")[1] === ADMIN_DOMAIN || ADMIN_EMAILS.has(lower);
 }
 
 const authLimiter = rateLimit({
@@ -105,7 +104,7 @@ router.post("/auth/signup", authLimiter, async (req, res): Promise<void> => {
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  // Admins are pre-provisioned in ADMIN_EMAILS; everyone else signs up as a founder.
+  // Active Impact staff (by email/domain) are admins; everyone else is a founder.
   const role = isAdminEmail(email) ? "admin" : "founder";
 
   const [user] = await db
