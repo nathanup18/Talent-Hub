@@ -26,9 +26,17 @@ router.get(
     // Manual entries (MANUAL- prefix) are always kept individually.
     const seen = new Map<string, typeof allCandidates[0]>();
     const categoryCount = new Map<string, number>();
+    // Seniority mix within each category, so founders can see the range of
+    // levels sitting behind a single deduped listing.
+    const senioritiesByCategory = new Map<string, Map<string, number>>();
     for (const c of allCandidates) {
       if (c.teId.startsWith("MANUAL-")) continue; // handled separately
       categoryCount.set(c.roleCategory, (categoryCount.get(c.roleCategory) ?? 0) + 1);
+      const bySeniority =
+        senioritiesByCategory.get(c.roleCategory) ?? new Map<string, number>();
+      const level = c.seniority || "Unspecified";
+      bySeniority.set(level, (bySeniority.get(level) ?? 0) + 1);
+      senioritiesByCategory.set(c.roleCategory, bySeniority);
       const existing = seen.get(c.roleCategory);
       if (!existing || c.lastSyncedAt > existing.lastSyncedAt) {
         seen.set(c.roleCategory, c);
@@ -40,6 +48,21 @@ router.get(
     // How many additional candidates sit behind each shown listing.
     const moreInCategoryFor = (c: typeof allCandidates[0]): number =>
       c.teId.startsWith("MANUAL-") ? 0 : Math.max(0, (categoryCount.get(c.roleCategory) ?? 1) - 1);
+
+    // The seniority breakdown for a category, highest level first.
+    const SENIORITY_ORDER = ["C-level", "VP", "Director", "Manager", "IC"];
+    const seniorityMixFor = (c: typeof allCandidates[0]): { seniority: string; count: number }[] => {
+      if (c.teId.startsWith("MANUAL-")) return [];
+      const mix = senioritiesByCategory.get(c.roleCategory);
+      if (!mix) return [];
+      return [...mix.entries()]
+        .map(([seniority, count]) => ({ seniority, count }))
+        .sort((a, b) => {
+          const ai = SENIORITY_ORDER.indexOf(a.seniority);
+          const bi = SENIORITY_ORDER.indexOf(b.seniority);
+          return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+        });
+    };
 
     const interests = await db
       .select({ teId: teInterestsTable.teId })
@@ -63,6 +86,7 @@ router.get(
         lastSyncedAt: c.lastSyncedAt,
         screeningDate: c.screeningDate,
         moreInCategory: moreInCategoryFor(c),
+        seniorityMix: seniorityMixFor(c),
       }))
     );
   }

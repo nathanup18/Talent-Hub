@@ -25,6 +25,7 @@ import {
   X,
   Plus,
   DollarSign,
+  ChevronDown,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -47,6 +48,7 @@ interface ProspectiveCandidate {
   lastSyncedAt: string;
   screeningDate: string | null;
   moreInCategory?: number;
+  seniorityMix?: { seniority: string; count: number }[];
 }
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
@@ -287,6 +289,12 @@ function ProspectiveCard({
   });
 
   const isManual = candidate.teId.startsWith("MANUAL-");
+  const [showMix, setShowMix] = useState(false);
+  // Seniority levels present in this category beyond the one shown on the card.
+  const otherLevels = (candidate.seniorityMix ?? []).filter(
+    (m) => !(m.seniority === candidate.seniority && m.count <= 1)
+  );
+  const hasMix = (candidate.moreInCategory ?? 0) > 0 && otherLevels.length > 0;
 
   return (
     <div className="bg-card border border-card-border rounded-xl p-6 flex flex-col h-full hover:shadow-md transition-shadow">
@@ -308,17 +316,40 @@ function ProspectiveCard({
             <span className="text-xs text-muted-foreground">
               {seniorityLabel(candidate.seniority)}
             </span>
-            {(candidate.moreInCategory ?? 0) > 0 && (
-              <span
-                className="text-xs text-muted-foreground"
-                title={`${candidate.moreInCategory} more ${candidate.roleCategory} candidate${
-                  candidate.moreInCategory === 1 ? "" : "s"
-                } at this stage — ask the Active Impact team`}
-              >
-                +{candidate.moreInCategory} more in {candidate.roleCategory}
-              </span>
-            )}
+            {(candidate.moreInCategory ?? 0) > 0 &&
+              (hasMix ? (
+                <button
+                  type="button"
+                  onClick={() => setShowMix((v) => !v)}
+                  className="text-xs text-primary hover:underline inline-flex items-center gap-0.5"
+                  aria-expanded={showMix}
+                >
+                  +{candidate.moreInCategory} more
+                  <ChevronDown
+                    className={`w-3 h-3 transition-transform ${showMix ? "rotate-180" : ""}`}
+                  />
+                </button>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  +{candidate.moreInCategory} more in {candidate.roleCategory}
+                </span>
+              ))}
           </div>
+          {hasMix && showMix && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <span className="text-xs text-muted-foreground w-full">
+                Seniority levels in {candidate.roleCategory}:
+              </span>
+              {(candidate.seniorityMix ?? []).map((m) => (
+                <span
+                  key={m.seniority}
+                  className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border"
+                >
+                  {seniorityLabel(m.seniority)} · {m.count}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <span className="text-xs font-medium text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full shrink-0">
           1st Screen
