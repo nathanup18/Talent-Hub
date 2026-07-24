@@ -122,11 +122,13 @@ export function mapCompExpectation(person: Record<string, any>): string | null {
 
 export function mapBridgeCandidate(c: BridgeCandidate): ProspectiveCacheRow {
   const person = c.person ?? {};
+  // Use || so empty strings fall through to the next source (TE often stores "").
   const title: string | null =
-    person.current_position_title ?? person.desired_title ?? c.job_title ?? null;
+    person.current_position_title || person.desired_title || c.job_title || null;
   const years: number | null =
     typeof person.years_of_experience === "number" ? person.years_of_experience : null;
   const educationLevel = mapEducationLevel(person.educations);
+  const topSkills = mapTopSkills(person.taggings);
 
   const blurbParts: string[] = [];
   if (title) blurbParts.push(title);
@@ -135,11 +137,12 @@ export function mapBridgeCandidate(c: BridgeCandidate): ProspectiveCacheRow {
 
   return {
     teId: c.te_id,
-    anonymizedHeadline: title ?? "Pre-vetted candidate",
-    roleCategory: mapRoleCategory(person.current_position_title ?? person.desired_title, c.job_title),
+    // Never blank: fall back to the strongest skill, then a generic label.
+    anonymizedHeadline: title || topSkills[0] || "Prospective candidate",
+    roleCategory: mapRoleCategory(person.current_position_title || person.desired_title, c.job_title),
     seniority: mapSeniority(title),
     location: mapLocation(person),
-    topSkills: mapTopSkills(person.taggings),
+    topSkills,
     summaryBlurb: blurbParts.join(" · "),
     educationLevel,
     yearsExperienceEstimate: years != null ? String(years) : null,

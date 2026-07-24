@@ -52,6 +52,9 @@ export const candidatesTable = pgTable("candidates", {
   summaryBlurb: text("summary_blurb").notNull(),
   notableCredentials: text("notable_credentials").notNull(),
   status: candidateStatusEnum("status").notNull().default("opted_in"),
+  // Which pool this candidate belongs to: the vetted "talent_pool" (1st Screen,
+  // request intro) or "prospective" (earlier funnel, express interest only).
+  pool: text("pool").notNull().default("talent_pool"),
   // Optional link to the Top Echelon person this candidate came from. The real
   // identity/contact is NOT stored here — it is fetched live from TE when an
   // admin views it or a founder requests an intro.

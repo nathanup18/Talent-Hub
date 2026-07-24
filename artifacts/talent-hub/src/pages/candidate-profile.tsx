@@ -56,8 +56,11 @@ export default function CandidateProfile() {
     },
   });
 
-  // Anonymized resume profile (served outside the generated candidate schema).
+  // Anonymized resume profile + pool (served outside the generated candidate schema).
   const [blindResume, setBlindResume] = useState<string | null>(null);
+  const [pool, setPool] = useState<string | null>(null);
+  const [expressedInterest, setExpressedInterest] = useState(false);
+  const [expressing, setExpressing] = useState(false);
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
@@ -68,7 +71,10 @@ export default function CandidateProfile() {
         });
         if (!res.ok) return;
         const data = await res.json();
-        if (!cancelled) setBlindResume(data.blindResume ?? null);
+        if (!cancelled) {
+          setBlindResume(data.blindResume ?? null);
+          setPool(data.pool ?? null);
+        }
       } catch {
         /* non-fatal */
       }
@@ -77,6 +83,23 @@ export default function CandidateProfile() {
       cancelled = true;
     };
   }, [id]);
+
+  const isProspective = pool === "prospective";
+
+  const handleExpressInterest = async () => {
+    setExpressing(true);
+    try {
+      const res = await fetch(`${BASE_URL}api/prospective/${id}/express-interest`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (res.ok || res.status === 409) setExpressedInterest(true);
+    } finally {
+      setExpressing(false);
+    }
+  };
 
   const { data: allRequests = [] } = useListIntroRequests({
     query: { queryKey: getListIntroRequestsQueryKey() },
@@ -210,6 +233,17 @@ export default function CandidateProfile() {
                 <div className="bg-muted text-muted-foreground rounded-lg px-4 py-2.5 font-medium text-center text-sm border border-border">
                   Candidate already placed
                 </div>
+              ) : isProspective ? (
+                expressedInterest ? (
+                  <div className="w-full flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2.5 text-sm font-medium">
+                    <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                    Interest Expressed
+                  </div>
+                ) : (
+                  <Button onClick={handleExpressInterest} disabled={expressing} className="w-full">
+                    {expressing ? "Submitting…" : "Express Interest"}
+                  </Button>
+                )
               ) : (
                 <>
                   {/* Intro */}

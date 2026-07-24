@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, gte, lte, ilike, or, sql } from "drizzle-orm";
-import { db, candidatesTable } from "@workspace/db";
+import { z } from "zod";
+import { db, candidatesTable, usersTable } from "@workspace/db";
 import { requireAuth, requireVerified } from "../middlewares/auth";
 import {
   ListCandidatesQueryParams,
@@ -25,7 +26,7 @@ router.get(
         count: sql<number>`count(*)::int`,
       })
       .from(candidatesTable)
-      .where(eq(candidatesTable.status, "opted_in"))
+      .where(and(eq(candidatesTable.status, "opted_in"), eq(candidatesTable.pool, "talent_pool")))
       .groupBy(candidatesTable.roleCategory);
 
     const bySeniority = await db
@@ -34,13 +35,13 @@ router.get(
         count: sql<number>`count(*)::int`,
       })
       .from(candidatesTable)
-      .where(eq(candidatesTable.status, "opted_in"))
+      .where(and(eq(candidatesTable.status, "opted_in"), eq(candidatesTable.pool, "talent_pool")))
       .groupBy(candidatesTable.seniority);
 
     const [totalResult] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(candidatesTable)
-      .where(eq(candidatesTable.status, "opted_in"));
+      .where(and(eq(candidatesTable.status, "opted_in"), eq(candidatesTable.pool, "talent_pool")));
 
     res.json(
       GetCandidateBreakdownResponse.parse({
@@ -72,7 +73,10 @@ router.get(
     const q = queryParsed.data;
     const isAdmin = req.session.userRole === "admin";
 
-    const conditions = [eq(candidatesTable.status, "opted_in")];
+    const conditions = [
+      eq(candidatesTable.status, "opted_in"),
+      eq(candidatesTable.pool, "talent_pool"),
+    ];
 
     if (q.roleCategory) {
       conditions.push(
@@ -282,6 +286,7 @@ router.get(
       .select({
         blindResume: candidatesTable.blindResume,
         notableCredentials: candidatesTable.notableCredentials,
+        pool: candidatesTable.pool,
       })
       .from(candidatesTable)
       .where(and(eq(candidatesTable.id, id), eq(candidatesTable.status, "opted_in")));
@@ -292,7 +297,141 @@ router.get(
     res.json({
       blindResume: candidate.blindResume ?? null,
       notableCredentials: candidate.notableCredentials ?? null,
+      pool: candidate.pool,
     });
+  }
+);
+
+// ── Prospective pool (earlier-funnel candidates, browse by function) ─────────
+
+// GET /prospective/functions — role categories with counts, for the tiles.
+router.get(
+  "/prospective/functions",
+  requireAuth,
+  requireVerified,
+  async (_req, res): Promise<void> => {
+    const rows = await db
+      .select({
+        roleCategory: candidatesTable.roleCategory,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(candidatesTable)
+      .where(and(eq(candidatesTable.status, "opted_in"), eq(candidatesTable.pool, "prospective")))
+      .groupBy(candidatesTable.roleCategory)
+      .orderBy(sql`count(*) desc`);
+    res.json(rows);
+  }
+);
+
+// GET /prospective/candidates?function=X — anonymized list within a function.
+router.get(
+  "/prospective/candidates",
+  requireAuth,
+  requireVerified,
+  async (req, res): Promise<void> => {
+    const fn = Array.isArray(req.query.function) ? req.query.function[0] : req.query.function;
+    const conditions = [
+      eq(candidatesTable.status, "opted_in"),
+      eq(candidatesTable.pool, "prospective"),
+    ];
+    if (fn && typeof fn === "string") {
+      conditions.push(
+        eq(
+          candidatesTable.roleCategory,
+          fn as "Engineering" | "Sales" | "Operations" | "Product" | "Finance" | "Marketing" | "Executive"
+        )
+      );
+    }
+    const rows = await db
+      .select({
+        id: candidatesTable.id,
+        anonymizedHeadline: candidatesTable.anonymizedHeadline,
+        roleCategory: candidatesTable.roleCategory,
+        seniority: candidatesTable.seniority,
+        yearsExperience: candidatesTable.yearsExperience,
+        location: candidatesTable.location,
+        topSkills: candidatesTable.topSkills,
+        notableCredentials: candidatesTable.notableCredentials,
+      })
+      .from(candidatesTable)
+      .where(and(...conditions))
+      .orderBy(candidatesTable.anonymizedHeadline);
+    res.json(rows);
+  }
+);
+
+// POST /prospective/:id/express-interest — founder expresses interest in a
+// prospective candidate. Recorded as an intro request of a distinct type so it
+// shows in the admin pipeline; no contact is fetched (earlier funnel).
+router.post(
+  "/prospective/:id/express-interest",
+  requireAuth,
+  requireVerified,
+  async (req, res): Promise<void> => {
+    const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const id = parseInt(raw, 10);
+    if (isNaN(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const founderId = req.session.userId!;
+    const { note } = z.object({ note: z.string().max(500).optional() }).parse(req.body ?? {});
+
+    const [candidate] = await db
+      .select()
+      .from(candidatesTable)
+      .where(
+        and(
+          eq(candidatesTable.id, id),
+          eq(candidatesTable.pool, "prospective"),
+          eq(candidatesTable.status, "opted_in")
+        )
+      );
+    if (!candidate) {
+      res.status(404).json({ error: "Prospective candidate not found" });
+      return;
+    }
+
+    const [existing] = await db
+      .select()
+      .from(introRequestsTable)
+      .where(
+        and(
+          eq(introRequestsTable.founderId, founderId),
+          eq(introRequestsTable.candidateId, id),
+          eq(introRequestsTable.requestType, "prospective_interest")
+        )
+      );
+    if (existing) {
+      res.status(409).json({ error: "You have already expressed interest in this candidate" });
+      return;
+    }
+
+    await db
+      .insert(introRequestsTable)
+      .values({ founderId, candidateId: id, requestType: "prospective_interest" });
+
+    res.status(201).json({ success: true, expressedInterest: true });
+
+    // Fire Zapier — non-blocking.
+    const zapierUrl = process.env.ZAPIER_INTRO_REQUEST_WEBHOOK_URL;
+    if (zapierUrl) {
+      const [founder] = await db.select().from(usersTable).where(eq(usersTable.id, founderId));
+      fetch(zapierUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requestType: "Prospective Interest",
+          founderName: founder?.name ?? "",
+          founderEmail: founder?.email ?? "",
+          founderCompany: founder?.company ?? "",
+          candidateHeadline: candidate.anonymizedHeadline,
+          candidateRoleCategory: candidate.roleCategory,
+          note: note ?? "",
+          requestedAt: new Date(),
+        }),
+      }).catch((err) => console.error("[zapier] prospective interest webhook failed:", err));
+    }
   }
 );
 
