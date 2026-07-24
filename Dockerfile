@@ -6,7 +6,9 @@
 # supplied by the platform.
 FROM node:24-slim AS build
 WORKDIR /app
-RUN corepack enable
+# Pin pnpm 9 explicitly — corepack would pull pnpm 11, which fails the install
+# by treating dependency build scripts (esbuild) as a fatal error.
+RUN npm install -g pnpm@9
 COPY . .
 RUN pnpm install --frozen-lockfile
 # Frontend is served at the domain root; bake that base path into the build.
@@ -14,7 +16,6 @@ RUN BASE_PATH=/ PORT=5000 pnpm run build:selfhost
 
 FROM node:24-slim AS run
 WORKDIR /app
-RUN corepack enable
 ENV NODE_ENV=production
 ENV BASE_PATH=/
 # App code + the externalized runtime deps (connect-pg-simple, pg, pino-pretty…)
