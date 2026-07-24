@@ -70,32 +70,43 @@ export default function ProspectiveFunction() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {candidates.map((c) => (
             <Link key={c.id} href={`/candidates/${c.id}`}>
-              <div className="bg-card border border-card-border rounded-xl p-6 flex flex-col h-full hover:shadow-md hover:border-primary/40 transition-all cursor-pointer">
-                <h3 className="font-semibold text-foreground text-base leading-snug line-clamp-2 mb-2">
-                  {c.anonymizedHeadline}
-                </h3>
-                <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-1">
-                  <Briefcase className="w-4 h-4 shrink-0" />
-                  <span>
-                    {c.seniority} · <span className="font-mono">{c.yearsExperience}</span> yrs
+              <div className="bg-card border border-card-border hover:border-primary/50 transition-colors rounded-lg p-5 shadow-sm h-full flex flex-col cursor-pointer group">
+                <div className="flex justify-between items-start mb-3">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                    {c.roleCategory}
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-3">
-                  <MapPin className="w-4 h-4 shrink-0" />
-                  <span className="truncate">{c.location}</span>
-                </div>
-                {c.notableCredentials && (
-                  <p className="text-sm text-foreground/80 line-clamp-2 mb-3">{c.notableCredentials}</p>
-                )}
-                <div className="mt-auto flex flex-wrap gap-1.5 pt-3 border-t border-border">
-                  {c.topSkills.slice(0, 3).map((s, i) => (
-                    <span
-                      key={i}
-                      className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground"
-                    >
-                      {s}
+
+                <h3 className="text-lg font-semibold mb-3 group-hover:text-primary transition-colors line-clamp-2">
+                  {c.anonymizedHeadline}
+                </h3>
+
+                <div className="space-y-2 mb-4 flex-1">
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <Briefcase className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <span>
+                      {c.seniority} · <span className="font-mono">{c.yearsExperience}</span> yrs exp
                     </span>
-                  ))}
+                  </div>
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <span>{c.location}</span>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-border mt-auto">
+                  <div className="flex flex-wrap gap-1.5">
+                    {c.topSkills.slice(0, 3).map((skill, idx) => (
+                      <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">
+                        {skill}
+                      </span>
+                    ))}
+                    {c.topSkills.length > 3 && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">
+                        +{c.topSkills.length - 3}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </Link>
