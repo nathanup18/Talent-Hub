@@ -100,6 +100,12 @@ router.post(
     }
     const { candidateId, requestType = "intro" } = parsed.data;
     const founderId = req.session.userId!;
+    // The founder's free-text note (from the More Info dialog) isn't part of the
+    // generated body schema, so read it off the raw body and cap its length.
+    const note =
+      typeof (req.body as { note?: unknown })?.note === "string"
+        ? ((req.body as { note: string }).note).slice(0, 500)
+        : "";
 
     // Check candidate exists and is opted in
     const [candidate] = await db
@@ -202,6 +208,8 @@ router.post(
           candidateHeadline: candidate.anonymizedHeadline,
           candidateRoleCategory: candidate.roleCategory,
           requestedAt: introRequest.requestedAt,
+          // Founder's free-text note (populated on More Info requests).
+          note,
           // Auto-intro fields: present only for real intro requests. When
           // introReady is true the Zap has both sides' emails and can send the
           // introduction without any manual admin lookup.
