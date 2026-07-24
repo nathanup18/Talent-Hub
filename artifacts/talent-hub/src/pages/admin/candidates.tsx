@@ -9,7 +9,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Plus, Search, Edit2, Trash2, X, Link2, Mail, CheckCircle2, Loader2 } from "lucide-react";
+import { Plus, Search, Edit2, Trash2, X, Link2, Mail, CheckCircle2, Loader2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BASE_URL } from "@/lib/api";
@@ -29,6 +29,38 @@ export default function AdminCandidates() {
   });
 
   const deleteMutation = useDeleteCandidate();
+  const { toast } = useToast();
+  const [importing, setImporting] = useState(false);
+
+  const handleImportFromTe = async () => {
+    if (
+      !confirm(
+        "Import the current 1st-Screen candidates from Top Echelon into the Talent Pool, and remove the old seed candidates? This replaces unlinked seed rows."
+      )
+    )
+      return;
+    setImporting(true);
+    try {
+      const res = await fetch(`${BASE_URL}api/admin/candidates/import-from-te`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ replaceSeed: true }),
+      });
+      const b = await res.json().catch(() => ({}));
+      if (res.ok) {
+        toast({
+          title: "Imported from Top Echelon",
+          description: `${b.imported} added, ${b.skipped} already present, ${b.cleared} seed removed.`,
+        });
+        queryClient.invalidateQueries({ queryKey: getListCandidatesQueryKey() });
+      } else {
+        toast({ title: "Import failed", description: b.error ?? `HTTP ${res.status}`, variant: "destructive" });
+      }
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const handleOpenAdd = () => {
     setEditingCandidate(null);
@@ -72,6 +104,10 @@ export default function AdminCandidates() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          <Button variant="outline" onClick={handleImportFromTe} disabled={importing}>
+            {importing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+            Import from TE
+          </Button>
           <Button onClick={handleOpenAdd}>
             <Plus className="w-4 h-4 mr-2" /> Add Candidate
           </Button>

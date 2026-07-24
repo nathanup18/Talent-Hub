@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, isNull } from "drizzle-orm";
 import { z } from "zod/v4";
 import {
   db,
@@ -10,6 +10,7 @@ import {
   usersTable,
 } from "@workspace/db";
 import { fetchTeContact, TeContactError } from "../../lib/te-contact";
+import { mapBridgeCandidate, type BridgeCandidate } from "../../lib/te-sync";
 import { requireAdmin } from "../../middlewares/auth";
 import {
   CreateCandidateBody,
@@ -125,6 +126,108 @@ router.post(
     );
   }
 );
+
+// POST /admin/candidates/import-from-te — populate the Talent Pool from Top
+// Echelon candidates at a pipeline stage (default "1st Screen"). Each imported
+// candidate is linked (te_id) so contact is fetched live at intro time; comp is
+// left at 0 (not shown to founders). Idempotent on te_id. With replaceSeed, the
+// unlinked seed candidates are removed first (delete cascades to intro requests).
+router.post("/admin/candidates/import-from-te", requireAdmin, async (req, res): Promise<void> => {
+  const body = z
+    .object({ stage: z.string().trim().min(1).optional(), replaceSeed: z.boolean().optional() })
+    .safeParse(req.body ?? {});
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+  const stage = body.data.stage ?? "1st Screen";
+
+  const syncUrl = process.env.TE_SYNC_URL;
+  const syncSecret = process.env.TE_SYNC_SECRET;
+  if (!syncUrl || !syncSecret) {
+    res.status(503).json({ error: "TE sync is not configured (TE_SYNC_URL / TE_SYNC_SECRET missing)" });
+    return;
+  }
+
+  let bridge: { candidates: BridgeCandidate[] };
+  try {
+    const r = await fetch(
+      `${syncUrl.replace(/\/+$/, "")}/sync/prospective?stage=${encodeURIComponent(stage)}`,
+      { headers: { Authorization: `Bearer ${syncSecret}` }, signal: AbortSignal.timeout(60_000) }
+    );
+    if (!r.ok) {
+      const t = await r.text();
+      res.status(502).json({ error: `TE bridge returned HTTP ${r.status}: ${t.slice(0, 200)}` });
+      return;
+    }
+    bridge = (await r.json()) as { candidates: BridgeCandidate[] };
+  } catch (err) {
+    res.status(502).json({ error: err instanceof Error ? err.message : "TE bridge unreachable" });
+    return;
+  }
+
+  let cleared = 0;
+  if (body.data.replaceSeed) {
+    const removed = await db
+      .delete(candidatesTable)
+      .where(isNull(candidatesTable.teId))
+      .returning({ id: candidatesTable.id });
+    cleared = removed.length;
+  }
+
+  let imported = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+  const today = new Date().toISOString().split("T")[0];
+
+  for (const bc of bridge.candidates ?? []) {
+    try {
+      const [existing] = await db
+        .select({ id: candidatesTable.id })
+        .from(candidatesTable)
+        .where(eq(candidatesTable.teId, bc.te_id));
+      if (existing) {
+        skipped++;
+        continue;
+      }
+
+      const mapped = mapBridgeCandidate(bc);
+      let realName = "Top Echelon candidate";
+      try {
+        const contact = await fetchTeContact(bc.te_id);
+        if (contact.fullName) realName = contact.fullName;
+      } catch {
+        // keep placeholder; admin can correct later
+      }
+
+      const years = Number(mapped.yearsExperienceEstimate);
+      await db.insert(candidatesTable).values({
+        internalId: `TE-${bc.te_id}`,
+        realName,
+        teId: bc.te_id,
+        anonymizedHeadline: mapped.anonymizedHeadline,
+        roleCategory: mapped.roleCategory as
+          | "Engineering" | "Sales" | "Operations" | "Product" | "Finance" | "Marketing" | "Executive",
+        seniority: mapped.seniority as "IC" | "Manager" | "Director" | "VP" | "C-level",
+        yearsExperience: Number.isFinite(years) ? years : 0,
+        location: mapped.location,
+        openToRelocation: false,
+        compRangeMin: 0,
+        compRangeMax: 0,
+        topSkills: mapped.topSkills,
+        summaryBlurb: mapped.summaryBlurb,
+        notableCredentials: mapped.educationLevel ?? "",
+        status: "opted_in",
+        dateAdded: today,
+      });
+      imported++;
+    } catch (err) {
+      errors.push(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  res.json({ success: true, stage, imported, skipped, cleared, errors });
+});
 
 // PATCH /admin/candidates/:id
 router.patch(
