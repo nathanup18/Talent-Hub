@@ -161,23 +161,24 @@ router.post(
       }))
     );
 
-    // For a real intro request, fetch the candidate's contact live from Top
-    // Echelon (via candidate.teId) so the Zap can auto-make the introduction.
-    // Nothing is stored. `more_info` requests never get contact.
+    // Fetch the candidate's contact live from Top Echelon (via candidate.teId)
+    // for BOTH intro and more-info requests, so the team's Zap always knows who
+    // the real person is. Nothing is stored. Goes only to the internal webhook.
     let contact:
       | { fullName: string | null; email: string | null; phone: string | null; linkedin: string | null }
       | null = null;
-    if (requestType === "intro" && candidate.teId) {
+    if (candidate.teId) {
       try {
         const c = await fetchTeContact(candidate.teId);
         contact = { fullName: c.fullName, email: c.email, phone: c.phone, linkedin: c.linkedin };
       } catch (err) {
-        // Degrade gracefully: the intro still logs; the Zap just won't have
+        // Degrade gracefully: the request still logs; the Zap just won't have
         // contact, so introReady stays false and an admin can follow up.
-        console.error("[te-contact] intro lookup failed:", err);
+        console.error("[te-contact] lookup failed:", err);
       }
     }
-    // Auto-intro is ready only when we actually have an email to introduce to.
+    // Auto-intro is ready only for an actual Intro request with an email — so
+    // the Zap's auto-send path never fires on a More Info request.
     const introReady = requestType === "intro" && !!contact?.email;
 
     // Fire Zapier webhook — non-blocking, never delays the response

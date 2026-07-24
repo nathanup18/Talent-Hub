@@ -11,6 +11,7 @@ import {
   GetCandidateBreakdownResponse,
 } from "@workspace/api-zod";
 import { introRequestsTable } from "@workspace/db";
+import { fetchTeContact } from "../lib/te-contact";
 
 const router: IRouter = Router();
 
@@ -414,10 +415,20 @@ router.post(
 
     res.status(201).json({ success: true, expressedInterest: true });
 
-    // Fire Zapier — non-blocking.
+    // Fire Zapier — non-blocking. Include live TE contact so the team's Zap
+    // knows who the real person is (internal webhook only, never shown to founders).
     const zapierUrl = process.env.ZAPIER_INTRO_REQUEST_WEBHOOK_URL;
     if (zapierUrl) {
       const [founder] = await db.select().from(usersTable).where(eq(usersTable.id, founderId));
+      let contact: { fullName: string | null; email: string | null; phone: string | null; linkedin: string | null } | null = null;
+      if (candidate.teId) {
+        try {
+          const c = await fetchTeContact(candidate.teId);
+          contact = { fullName: c.fullName, email: c.email, phone: c.phone, linkedin: c.linkedin };
+        } catch (err) {
+          console.error("[te-contact] prospective lookup failed:", err);
+        }
+      }
       fetch(zapierUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -437,6 +448,12 @@ router.post(
           candidateRoleCategory: candidate.roleCategory,
           note: note ?? "",
           requestedAt: new Date(),
+          // Prospective is express-interest only, so this is never an auto-send.
+          introReady: false,
+          candidateName: contact?.fullName ?? null,
+          candidateEmail: contact?.email ?? null,
+          candidatePhone: contact?.phone ?? null,
+          candidateLinkedin: contact?.linkedin ?? null,
         }),
       }).catch((err) => console.error("[zapier] prospective interest webhook failed:", err));
     }
