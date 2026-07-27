@@ -343,6 +343,65 @@ async function loadCandidate(idParam: string) {
   return candidate ?? null;
 }
 
+// GET /admin/candidates/:id — full candidate row (admin only), for the edit form.
+router.get("/admin/candidates/:id", requireAdmin, async (req, res): Promise<void> => {
+  const candidate = await loadCandidate(req.params.id);
+  if (!candidate) {
+    res.status(404).json({ error: "Candidate not found" });
+    return;
+  }
+  res.json(candidate);
+});
+
+// PATCH /admin/candidates/:id/edit — edit candidate fields (both pools). Hand-
+// written so it can update fields the generated schema doesn't cover (blindResume).
+const EditCandidateBody = z.object({
+  anonymizedHeadline: z.string().trim().min(1).max(300).optional(),
+  roleCategory: z.enum(["Engineering", "Sales", "Operations", "Product", "Finance", "Marketing", "Executive"]).optional(),
+  seniority: z.enum(["IC", "Manager", "Director", "VP", "C-level"]).optional(),
+  yearsExperience: z.number().int().min(0).max(80).optional(),
+  location: z.string().trim().max(200).optional(),
+  openToRelocation: z.boolean().optional(),
+  topSkills: z.array(z.string().trim().max(60)).max(20).optional(),
+  summaryBlurb: z.string().trim().max(2000).optional(),
+  notableCredentials: z.string().trim().max(600).optional(),
+  blindResume: z.string().trim().max(8000).nullish(),
+  status: z.enum(["opted_in", "paused", "placed", "withdrawn"]).optional(),
+});
+
+router.patch("/admin/candidates/:id/edit", requireAdmin, async (req, res): Promise<void> => {
+  const candidate = await loadCandidate(req.params.id);
+  if (!candidate) {
+    res.status(404).json({ error: "Candidate not found" });
+    return;
+  }
+  const parsed = EditCandidateBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const d = parsed.data;
+  const updates: Record<string, unknown> = {};
+  for (const key of [
+    "anonymizedHeadline", "roleCategory", "seniority", "yearsExperience",
+    "location", "openToRelocation", "topSkills", "summaryBlurb",
+    "notableCredentials", "blindResume", "status",
+  ] as const) {
+    if (d[key] !== undefined) updates[key] = d[key];
+  }
+  if (Object.keys(updates).length === 0) {
+    res.json(candidate);
+    return;
+  }
+  const [updated] = await db
+    .update(candidatesTable)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .set(updates as any)
+    .where(eq(candidatesTable.id, candidate.id))
+    .returning();
+  res.json(updated);
+});
+
 // PUT /admin/candidates/:id/te-link — set or clear the TE link (stores only the id)
 router.put("/admin/candidates/:id/te-link", requireAdmin, async (req, res): Promise<void> => {
   const candidate = await loadCandidate(req.params.id);

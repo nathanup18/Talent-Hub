@@ -1,5 +1,8 @@
-import { useRoute, useSearch, Link } from "wouter";
+import { useRoute, useSearch, Link, useLocation } from "wouter";
 import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/use-auth";
+import { Input } from "@/components/ui/input";
+import { Pencil, Trash2 } from "lucide-react";
 import {
   useGetCandidate,
   useCreateIntroRequest,
@@ -85,6 +88,95 @@ export default function CandidateProfile() {
   }, [id]);
 
   const isProspective = pool === "prospective";
+
+  // ── Admin edit / delete ────────────────────────────────────────────────
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const [, setLocation] = useLocation();
+  const [editOpen, setEditOpen] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const emptyEdit = {
+    anonymizedHeadline: "", roleCategory: "Engineering", seniority: "IC",
+    yearsExperience: 0, location: "", openToRelocation: false,
+    topSkills: "", summaryBlurb: "", notableCredentials: "", blindResume: "",
+    status: "opted_in",
+  };
+  const [editForm, setEditForm] = useState(emptyEdit);
+
+  const openEdit = async () => {
+    // Pull the full admin row (includes blindResume, status, etc.).
+    try {
+      const res = await fetch(`${BASE_URL}api/admin/candidates/${id}`, { credentials: "include" });
+      if (res.ok) {
+        const c = await res.json();
+        setEditForm({
+          anonymizedHeadline: c.anonymizedHeadline ?? "",
+          roleCategory: c.roleCategory ?? "Engineering",
+          seniority: c.seniority ?? "IC",
+          yearsExperience: c.yearsExperience ?? 0,
+          location: c.location ?? "",
+          openToRelocation: !!c.openToRelocation,
+          topSkills: (c.topSkills ?? []).join(", "),
+          summaryBlurb: c.summaryBlurb ?? "",
+          notableCredentials: c.notableCredentials ?? "",
+          blindResume: c.blindResume ?? "",
+          status: c.status ?? "opted_in",
+        });
+      }
+    } finally {
+      setEditOpen(true);
+    }
+  };
+
+  const saveEdit = async () => {
+    setSavingEdit(true);
+    try {
+      const res = await fetch(`${BASE_URL}api/admin/candidates/${id}/edit`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          anonymizedHeadline: editForm.anonymizedHeadline,
+          roleCategory: editForm.roleCategory,
+          seniority: editForm.seniority,
+          yearsExperience: Number(editForm.yearsExperience) || 0,
+          location: editForm.location,
+          openToRelocation: editForm.openToRelocation,
+          topSkills: editForm.topSkills.split(",").map((s) => s.trim()).filter(Boolean),
+          summaryBlurb: editForm.summaryBlurb,
+          notableCredentials: editForm.notableCredentials,
+          blindResume: editForm.blindResume || null,
+          status: editForm.status,
+        }),
+      });
+      if (res.ok) {
+        setEditOpen(false);
+        queryClient.invalidateQueries({ queryKey: getGetCandidateQueryKey(id) });
+        setBlindResume(editForm.blindResume || null);
+      }
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleDeleteCandidate = async () => {
+    if (!confirm("Delete this candidate profile permanently? This cannot be undone.")) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`${BASE_URL}api/admin/candidates/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (res.ok || res.status === 204) {
+        setLocation(isProspective ? "/prospective" : "/dashboard");
+      } else {
+        setDeleting(false);
+      }
+    } catch {
+      setDeleting(false);
+    }
+  };
 
   const handleExpressInterest = async () => {
     setExpressing(true);
@@ -217,6 +309,26 @@ export default function CandidateProfile() {
           </Link>
         );
       })()}
+
+      {isAdmin && (
+        <div className="flex items-center justify-between gap-3 mb-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
+          <span className="text-sm text-amber-800 font-medium">Admin controls</span>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={openEdit} className="gap-1.5">
+              <Pencil className="w-4 h-4" /> Edit
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDeleteCandidate}
+              disabled={deleting}
+              className="gap-1.5 text-destructive hover:text-destructive border-destructive/30"
+            >
+              <Trash2 className="w-4 h-4" /> {deleting ? "Deleting…" : "Delete"}
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="bg-card border border-card-border rounded-xl shadow-sm overflow-hidden mb-6">
         <div className="p-8 md:p-10 border-b border-border">
@@ -414,6 +526,66 @@ export default function CandidateProfile() {
           </div>
         </div>
       </div>
+
+      {/* Admin edit dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit candidate</DialogTitle>
+            <DialogDescription>
+              Changes are saved to the {isProspective ? "Prospective" : "Talent Pool"} record.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2 space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Headline</label>
+              <Input value={editForm.anonymizedHeadline} onChange={(e) => setEditForm((f) => ({ ...f, anonymizedHeadline: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Function</label>
+              <select className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm" value={editForm.roleCategory} onChange={(e) => setEditForm((f) => ({ ...f, roleCategory: e.target.value }))}>
+                {["Engineering","Sales","Operations","Product","Finance","Marketing","Executive"].map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Seniority</label>
+              <select className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm" value={editForm.seniority} onChange={(e) => setEditForm((f) => ({ ...f, seniority: e.target.value }))}>
+                {["IC","Manager","Director","VP","C-level"].map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Years experience</label>
+              <Input type="number" min={0} value={editForm.yearsExperience} onChange={(e) => setEditForm((f) => ({ ...f, yearsExperience: Number(e.target.value) }))} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Status</label>
+              <select className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm" value={editForm.status} onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))}>
+                {["opted_in","paused","placed","withdrawn"].map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <div className="sm:col-span-2 space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Location</label>
+              <Input value={editForm.location} onChange={(e) => setEditForm((f) => ({ ...f, location: e.target.value }))} />
+            </div>
+            <div className="sm:col-span-2 space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Top skills (comma separated)</label>
+              <Input value={editForm.topSkills} onChange={(e) => setEditForm((f) => ({ ...f, topSkills: e.target.value }))} />
+            </div>
+            <div className="sm:col-span-2 space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Notable credentials (one line)</label>
+              <Input value={editForm.notableCredentials} onChange={(e) => setEditForm((f) => ({ ...f, notableCredentials: e.target.value }))} />
+            </div>
+            <div className="sm:col-span-2 space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Anonymized résumé</label>
+              <Textarea rows={8} value={editForm.blindResume} onChange={(e) => setEditForm((f) => ({ ...f, blindResume: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button onClick={saveEdit} disabled={savingEdit}>{savingEdit ? "Saving…" : "Save changes"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* More Info dialog */}
       <Dialog open={moreInfoOpen} onOpenChange={(o) => { if (!o) { setMoreInfoOpen(false); setMoreInfoNote(""); } }}>
