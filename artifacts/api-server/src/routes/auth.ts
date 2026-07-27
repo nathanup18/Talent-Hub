@@ -31,6 +31,33 @@ function isAdminEmail(email: string): boolean {
   return lower.split("@")[1] === ADMIN_DOMAIN || ADMIN_EMAILS.has(lower);
 }
 
+// Allowed sign-up domains can be managed in a Google Sheet published to the web
+// as CSV. Set ALLOWED_DOMAINS_CSV_URL to that CSV link. First column = domain
+// (e.g. "acme.com"); a "domain" header, blank lines, and #comments are ignored.
+// Cached 5 minutes. When unset, the app falls back to the `domains` table.
+const ALLOWED_DOMAINS_CSV_URL = process.env.ALLOWED_DOMAINS_CSV_URL;
+let _domainCache: { at: number; domains: Set<string> } | null = null;
+
+async function allowedDomainsFromSheet(): Promise<Set<string> | null> {
+  if (!ALLOWED_DOMAINS_CSV_URL) return null;
+  if (_domainCache && Date.now() - _domainCache.at < 5 * 60 * 1000) return _domainCache.domains;
+  try {
+    const res = await fetch(ALLOWED_DOMAINS_CSV_URL, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return _domainCache?.domains ?? null;
+    const text = await res.text();
+    const domains = new Set<string>();
+    for (const line of text.split(/\r?\n/)) {
+      const cell = (line.split(",")[0] ?? "").replace(/^"|"$/g, "").trim().toLowerCase();
+      if (!cell || cell === "domain" || cell.startsWith("#")) continue;
+      domains.add(cell.replace(/^@/, ""));
+    }
+    _domainCache = { at: Date.now(), domains };
+    return domains;
+  } catch {
+    return _domainCache?.domains ?? null; // serve stale on transient failure
+  }
+}
+
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 20,
@@ -78,15 +105,23 @@ router.post("/auth/signup", authLimiter, async (req, res): Promise<void> => {
   const isActiveImpactDomain = domain === "activeimpactinvestments.com";
 
   if (!isActiveImpactDomain) {
-    const [whitelistedDomain] = await db
-      .select()
-      .from(domainsTable)
-      .where(eq(domainsTable.domain, domain));
+    // Prefer the Google Sheet allowlist when configured; otherwise the domains table.
+    const sheet = await allowedDomainsFromSheet();
+    let allowed: boolean;
+    if (sheet) {
+      allowed = sheet.has(domain);
+    } else {
+      const [whitelistedDomain] = await db
+        .select()
+        .from(domainsTable)
+        .where(eq(domainsTable.domain, domain));
+      allowed = !!whitelistedDomain;
+    }
 
-    if (!whitelistedDomain) {
+    if (!allowed) {
       res.status(400).json({
         error:
-          "Your email domain is not on the portfolio company whitelist. Please contact the Active Impact team to get access.",
+          "Your email domain is not on the approved list. Please contact the Active Impact team to get access.",
       });
       return;
     }
