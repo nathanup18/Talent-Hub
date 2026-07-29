@@ -227,9 +227,9 @@ export default function AdminIntroRequests() {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-1">Intro Requests</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-1">All Requests</h1>
           <p className="text-muted-foreground text-sm">
-            Review and action requests from founders. Accepting notifies them that an intro is being coordinated.
+            Every request across the app — intros, more-info, and prospective interest — from all founders. Accepting notifies the founder that an intro is being coordinated.
           </p>
         </div>
 

@@ -355,9 +355,10 @@ export default function CandidateProfile() {
               </div>
             </div>
 
-            {/* CTA area — fixed width so both buttons are identical size */}
+            {/* CTA area — founders only. Admins act via the admin controls bar,
+                not by requesting intros for themselves. */}
             <div className="flex-shrink-0 w-full md:w-52 flex flex-col gap-2">
-              {isPlaced ? (
+              {isAdmin ? null : isPlaced ? (
                 <div className="bg-muted text-muted-foreground rounded-lg px-4 py-2.5 font-medium text-center text-sm border border-border">
                   Candidate already placed
                 </div>

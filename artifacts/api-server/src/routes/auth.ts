@@ -257,7 +257,10 @@ router.get("/auth/me", async (req, res): Promise<void> => {
   req.session.emailVerified = effectiveUser.emailVerified;
   req.session.userRole = effectiveUser.role;
 
-  res.json({ user: formatUser(effectiveUser) });
+  // Flat CurrentUser — the client's getMe expects the user object directly, not
+  // wrapped in { user }. Wrapping it made role always undefined client-side, so
+  // isAdmin was false everywhere (no admin nav / controls).
+  res.json(formatUser(effectiveUser));
 });
 
 // POST /auth/verify-email

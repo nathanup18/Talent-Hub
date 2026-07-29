@@ -40,9 +40,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   const navItems = isAdmin
     ? [
-        { label: "Overview", href: "/admin", icon: LayoutDashboard },
-        { label: "Intro Requests", href: "/admin/intro-requests", icon: LinkIcon },
-        { label: "Candidates", href: "/admin/candidates", icon: Users },
+        // Admins browse the same pools founders do (with inline edit/delete),
+        // plus the all-requests screen and the domain allowlist.
+        { label: "Talent Pool", href: "/dashboard", icon: Users },
+        { label: "Prospective", href: "/prospective", icon: Sparkles },
+        { label: "All Requests", href: "/admin/intro-requests", icon: LinkIcon },
         { label: "Domains", href: "/admin/domains", icon: Building2 },
       ]
     : [
@@ -58,7 +60,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <div className="sticky top-0 z-30 bg-secondary text-secondary-foreground">
         <header>
           <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-            <Link href={isAdmin ? "/admin" : "/dashboard"} className="flex items-center gap-2">
+            <Link href="/dashboard" className="flex items-center gap-2">
               <img src={logoFooterWhite} alt="Active Impact" className="h-8 object-contain" />
               <span className="font-semibold text-lg ml-2 border-l border-white/20 pl-4">
                 Talent Hub
