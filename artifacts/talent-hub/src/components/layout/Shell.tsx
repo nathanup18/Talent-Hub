@@ -24,7 +24,7 @@ import { BASE_URL } from "@/lib/api";
 import logoFooterWhite from "@assets/logo-footer-white.png";
 
 export function Shell({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [location, setLocation] = useLocation();
   const queryClient = useQueryClient();
 
@@ -35,8 +35,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
   };
 
   if (!user) return <>{children}</>;
-
-  const isAdmin = user.role === "admin";
 
   const navItems = isAdmin
     ? [

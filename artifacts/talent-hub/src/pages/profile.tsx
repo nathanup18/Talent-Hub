@@ -9,7 +9,7 @@ import { UserCircle, CheckCircle2 } from "lucide-react";
 import { BASE_URL } from "@/lib/api";
 
 export default function Profile() {
-  const { user } = useAuth();
+  const { user, isRealAdmin, adminMode, setAdminMode } = useAuth();
   const queryClient = useQueryClient();
 
   const [name, setName] = useState(user?.name ?? "");
@@ -79,6 +79,36 @@ export default function Profile() {
           </div>
         </div>
       </div>
+
+      {/* Admin mode toggle — only for real admins. Off = act as a regular
+          founder (make intro/interest requests) while keeping the admin role. */}
+      {isRealAdmin && (
+        <div className="bg-card border border-card-border rounded-xl p-6 mb-6 flex items-center justify-between gap-4">
+          <div>
+            <div className="font-medium text-foreground">Admin mode</div>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {adminMode
+                ? "On — you have admin controls (edit/delete, all requests, domains)."
+                : "Off — you're browsing as a regular user and can request intros. Your requests are saved."}
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={adminMode}
+            onClick={() => setAdminMode(!adminMode)}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+              adminMode ? "bg-primary" : "bg-muted-foreground/30"
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                adminMode ? "translate-x-5" : "translate-x-0.5"
+              }`}
+            />
+          </button>
+        </div>
+      )}
 
       <form onSubmit={handleSave} className="bg-card border border-card-border rounded-xl p-6 space-y-5">
         <div className="space-y-1.5">

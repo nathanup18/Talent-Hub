@@ -90,8 +90,9 @@ export default function CandidateProfile() {
   const isProspective = pool === "prospective";
 
   // ── Admin edit / delete ────────────────────────────────────────────────
-  const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  // isAdmin is the EFFECTIVE admin view (respects the admin-mode toggle), so an
+  // admin who switches to founder mode sees the founder CTAs and can request.
+  const { isAdmin } = useAuth();
   const [, setLocation] = useLocation();
   const [editOpen, setEditOpen] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
